@@ -8,9 +8,7 @@ dotenvConfig({
 })
 
 Sentry.init({
-  dsn:
-    process.env.SENTRY_DSN ||
-    'https://910bcd4754a0ae64454a10e052fdf248@o4511417756155904.ingest.us.sentry.io/4511417759432704',
+  dsn: process.env.SENTRY_DSN,
   environment: process.env.NODE_ENV || 'development',
   sendDefaultPii: true,
   integrations: [nodeProfilingIntegration()],
