@@ -1,0 +1,104 @@
+services:
+  # -------------------------------------------------------------
+  # Backend API (Node.js Docker Web Service)
+  # -------------------------------------------------------------
+  - type: web
+    name: smart-campus-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: RELOAD_SECRET
+        generateValue: true
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: 587
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: NLP_SERVICE_URL
+        value: https://smart-campus-nlp.onrender.com
+      - key: STUDENT_CLIENT_URL
+        fromStaticSite:
+          name: smart-campus-student
+          property: url
+      - key: ADMIN_CLIENT_URL
+        fromStaticSite:
+          name: smart-campus-admin
+          property: url
+      - key: CLIENT_URL
+        fromStaticSite:
+          name: smart-campus-student
+          property: url
+      - key: ADMIN_REGISTRATION_KEY
+        sync: false
+
+  # -------------------------------------------------------------
+  # Student Portal (Vite React Static Site)
+  # -------------------------------------------------------------
+  - type: web
+    name: smart-campus-student
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build:student
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: smart-campus-backend
+          property: url
+      - key: VITE_PORTAL
+        value: student
+
+  # -------------------------------------------------------------
+  # Admin Portal (Vite React Static Site)
+  # -------------------------------------------------------------
+  - type: web
+    name: smart-campus-admin
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build:admin
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: smart-campus-backend
+          property: url
+      - key: VITE_PORTAL
+        value: admin

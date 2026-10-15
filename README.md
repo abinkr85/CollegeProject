@@ -3,8 +3,8 @@
 A comprehensive complaint management platform for campus environments that enables students to submit complaints and allows administrators to track, analyze, and resolve issues efficiently.
 
 ### 🔗 Live Demo
-- **Student Portal:** https://smart-campus-student.vercel.app
-- **Admin Portal:** https://smart-campus-admin.vercel.app
+- **Student Portal:** https://smart-campus-student.onrender.com
+- **Admin Portal:** https://smart-campus-admin.onrender.com
 
 ---
 
@@ -676,41 +676,41 @@ const rateLimit = {
     └─────────┬───────────────┘
               │
     ┌─────────▼─────────────────────────────┐
-    │         Vercel (Hosting)              │
+    │         Render (Static Sites)         │
     │  ┌──────────────────────────────────┐ │
     │  │ Student Portal                   │ │
-    │  │ smart-campus-student.vercel.app  │ │
+    │  │ smart-campus-student.onrender.com│ │
     │  │ (React frontend)                 │ │
     │  └──────────────────────────────────┘ │
     │  ┌──────────────────────────────────┐ │
     │  │ Admin Portal                     │ │
-    │  │ smart-campus-admin.vercel.app    │ │
+    │  │ smart-campus-admin.onrender.com  │ │
     │  │ (React frontend)                 │ │
     │  └──────────────────────────────────┘ │
     └─────────────────────────────────────┘
               │
     ┌─────────▼────────────────────────────┐
-    │         Render (Hosting)             │
+    │         Render (Web Services)        │
     │  ┌──────────────────────────────────┐│
     │  │ Backend API                      ││
-    │  │ https://smart-campus-api.render.com
+    │  │ https://smart-campus-api.onrender.com
     │  │ (Node.js + Express)              ││
     │  └──────────────────────────────────┘│
-    │  ┌──────────────────────────────────┐│
+    ┌──────────────────────────────────────┐│
     │  │ NLP Service                      ││
-    │  │ https://smart-campus-nlp.render.com
+    │  │ https://smart-campus-nlp.onrender.com
     │  │ (Python + Flask)                 ││
     │  └──────────────────────────────────┘│
-    │  ┌──────────────────────────────────┐│
-    │  │ PostgreSQL Database              ││
-    │  │ Managed Postgres Instance        ││
+    ┌──────────────────────────────────────┐│
+    │  │ Cloud PostgreSQL Database         ││
+    │  │ (Supabase / Neon / Render)       ││
     │  └──────────────────────────────────┘│
     └──────────────────────────────────────┘
 ```
 
 ### Deployment Environment Variables
 
-**All secrets should ONLY be set in Render/Vercel dashboards, never committed:**
+**All secrets should ONLY be set in the Render dashboard, never committed:**
 
 ```env
 # Render Backend Dashboard:
@@ -723,9 +723,9 @@ CLOUDINARY_NAME=cloudinary_account
 CLOUDINARY_API_KEY=cloudinary_key
 CLOUDINARY_API_SECRET=cloudinary_secret
 RELOAD_SECRET=shared_secret
-NLP_SERVICE_URL=https://smart-campus-nlp.render.com
-STUDENT_CLIENT_URL=https://smart-campus-student.vercel.app
-ADMIN_CLIENT_URL=https://smart-campus-admin.vercel.app
+NLP_SERVICE_URL=https://smart-campus-nlp.onrender.com
+STUDENT_CLIENT_URL=https://smart-campus-student.onrender.com
+ADMIN_CLIENT_URL=https://smart-campus-admin.onrender.com
 NODE_ENV=production
 
 # Render NLP Dashboard:
@@ -734,8 +734,8 @@ NLP_REQUIRE_SECRET=true
 RELOAD_SECRET=shared_secret
 DATABASE_URL=postgresql://user:pwd@render-postgres:5432/db
 
-# Vercel Frontend Dashboard:
-VITE_API_URL=https://smart-campus-api.render.com
+# Render Frontend Static Sites Dashboard:
+VITE_API_URL=https://smart-campus-backend.onrender.com
 ```
 
 ### Security Considerations
@@ -928,8 +928,7 @@ Language Breakdown:
 | **Database** | PostgreSQL (with Prisma ORM) | Relational data modeling and storage |
 | **AI/NLP** | Python, Flask, scikit-learn | Machine learning categorization for incoming complaints |
 | **Storage** | Cloudinary | Cloud storage for uploaded complaint images |
-| **Cache & Queues** | Redis, BullMQ | Fast data caching and background job queuing |
-| **Hosting (Production)** | Vercel, Render | Deployment of web clients and API/NLP services |
+| **Hosting (Production)** | Render | Deployment of web clients and API/NLP services |
 
 ---
 

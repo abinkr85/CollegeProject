@@ -31,7 +31,7 @@ In a real-world campus setting, students frequently encounter broken amenities, 
 | **AI/NLP** | Python, Flask, scikit-learn | Machine learning categorization for incoming complaints |
 | **Storage** | Cloudinary | Cloud storage for uploaded complaint images |
 | **Cache & Queues** | Redis, BullMQ | Fast data caching and background job queuing |
-| **Hosting (Production)** | Vercel, Render | Deployment of web clients and API/NLP services |
+| **Hosting (Production)** | Render | Deployment of web clients and API/NLP services |
 
 ## 5. Languages Used
 
@@ -149,8 +149,7 @@ smart-campus-complaints/
 │   └── .env.example
 ├── docker-compose.yml         # Local development Docker config
 ├── docker-compose.prod.yml    # Production Docker config
-├── README.md                  # Project documentation
-└── vercel.json                # Vercel deployment configuration
+└── render.yaml                # Render Blueprint deployment configuration
 ```
 
 ## 9. Frontend Design & Workflow
@@ -209,9 +208,9 @@ The PostgreSQL database (managed by Prisma) is highly relational. Key tables inc
 ## 16. Current Status & Hosting Platforms
 
 - **Local Development:** Handled natively via Docker Compose (`docker-compose.yml`) spinning up Postgres, Redis, the Node backend, the Python NLP service, and the Vite frontend.
-- **Frontend Hosting:** Configured for **Vercel** (`vercel.json` found in root, specifically handling custom build commands for student vs admin builds).
-- **Backend & NLP Hosting:** Based on configuration hints and `README.md`, **Render** is heavily indicated as the hosting platform for the Node.js API and Python Flask service.
-- **Database / Cache:** Managed Postgres Instance and Managed Redis (likely Render or similar cloud providers).
+- **Frontend Hosting:** Configured for **Render Static Sites** (`render.yaml` found in root, specifically handling custom build commands for student vs admin builds).
+- **Backend & NLP Hosting:** **Render** is used as the hosting platform for the Node.js API and Python Flask service.
+- **Database / Cache:** Cloud Postgres and Redis (e.g. Supabase/Neon and Upstash).
 
 ## 17. How to Run Locally
 
@@ -231,12 +230,10 @@ Using Docker (the recommended approach):
 
 ## 18. Public Access
 
-Public URLs rely on the deployed environments (e.g., Vercel and Render). 
-*Likely used based on configuration and documentation, but confirm manually:*
-- Student Portal: `https://smart-campus-student.vercel.app` (Example from docs)
-- Admin Portal: `https://smart-campus-admin.vercel.app` (Example from docs)
-- Backend API: `https://smart-campus-api.render.com` (Example from docs)
-*(Note: These URLs must be confirmed against live DNS records.)*
+Public URLs rely on the deployed Render environments:
+- Student Portal: `https://smart-campus-student.onrender.com`
+- Admin Portal: `https://smart-campus-admin.onrender.com`
+- Backend API: `https://smart-campus-backend.onrender.com`
 
 ## 19. PageSpeed Insights Results
 
