@@ -84,7 +84,8 @@ export const getMonthlyTrend = () =>
       SELECT
         TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YYYY') AS month,
         DATE_TRUNC('month', created_at) AS month_start,
-        COUNT(*)::INT AS count
+        COUNT(*)::INT AS count,
+        COUNT(*) FILTER (WHERE status = 'RESOLVED')::INT AS resolved
       FROM complaints
       WHERE created_at >= NOW() - INTERVAL '12 months'
       GROUP BY DATE_TRUNC('month', created_at)
@@ -94,6 +95,7 @@ export const getMonthlyTrend = () =>
       rows.map(row => ({
         month: row.month,
         count: Number(row.count),
+        resolved: Number(row.resolved ?? 0),
       }))
     )
 

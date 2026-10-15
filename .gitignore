@@ -24,4 +24,4 @@ venv
 models/*.pkl
 .DS_Store
 Thumbs.db
-.vercel/
+.vercel*/

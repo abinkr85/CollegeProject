@@ -1,0 +1,304 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Submit Complaint - Academic Clarity</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#d9dadb",
+                        "surface": "#f8f9fa",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "error-container": "#ffdad6",
+                        "background": "#f8f9fa",
+                        "surface-container": "#edeeef",
+                        "tertiary": "#00180d",
+                        "surface-variant": "#e1e3e4",
+                        "tertiary-fixed": "#6ffbbe",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#3d4756",
+                        "inverse-primary": "#bdc7d9",
+                        "secondary-fixed": "#d8e2ff",
+                        "tertiary-container": "#002f1e",
+                        "primary": "#0a1422",
+                        "on-secondary-fixed": "#001a42",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "on-primary-container": "#8690a1",
+                        "on-surface-variant": "#44474c",
+                        "surface-bright": "#f8f9fa",
+                        "surface-container-low": "#f3f4f5",
+                        "on-primary": "#ffffff",
+                        "primary-container": "#1f2937",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#002113",
+                        "primary-fixed-dim": "#bdc7d9",
+                        "on-secondary-container": "#fefcff",
+                        "primary-fixed": "#d9e3f6",
+                        "surface-tint": "#555f6f",
+                        "on-primary-fixed": "#121c2a",
+                        "outline": "#75777c",
+                        "secondary-container": "#2170e4",
+                        "on-tertiary-container": "#00a371",
+                        "on-background": "#191c1d",
+                        "on-secondary-fixed-variant": "#004395",
+                        "inverse-surface": "#2e3132",
+                        "on-secondary": "#ffffff",
+                        "secondary": "#0058be",
+                        "surface-container-high": "#e7e8e9",
+                        "on-surface": "#191c1d",
+                        "on-tertiary": "#ffffff",
+                        "outline-variant": "#c5c6cc",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-on-surface": "#f0f1f2",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "margin-desktop": "32px",
+                        "section-gap": "48px",
+                        "margin-mobile": "16px",
+                        "base": "8px",
+                        "container-max": "1280px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Inter", "sans-serif"],
+                        "label-sm": ["Inter", "sans-serif"],
+                        "display-lg": ["Inter", "sans-serif"],
+                        "headline-sm": ["Inter", "sans-serif"],
+                        "headline-lg": ["Inter", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "label-md": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+                        "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "26px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .input-base {
+            height: 48px;
+            width: 100%;
+            background-color: #ffffff;
+            border: 1px solid #c5c6cc;
+            border-radius: 0.25rem;
+            font-family: Inter, sans-serif;
+            font-size: 14px;
+            line-height: 22px;
+            font-weight: 400;
+            color: #191c1d;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            outline: none;
+            transition: all 200ms;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .input-base:hover {
+            border-color: #75777c;
+        }
+        .input-base:focus {
+            border-color: #1f2937;
+        }
+        .select-base {
+            height: 48px;
+            width: 100%;
+            background-color: #ffffff;
+            border: 1px solid #c5c6cc;
+            border-radius: 0.25rem;
+            font-family: Inter, sans-serif;
+            font-size: 14px;
+            line-height: 22px;
+            font-weight: 400;
+            color: #191c1d;
+            padding-left: 1rem;
+            padding-right: 2.5rem;
+            padding-top: 0;
+            padding-bottom: 0;
+            outline: none;
+            transition: all 200ms;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2375777c' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.75rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+        .select-base:hover {
+            border-color: #75777c;
+        }
+        .select-base:focus {
+            border-color: #1f2937;
+        }
+        .label-base {
+            display: block;
+            font-family: Inter, sans-serif;
+            font-size: 12px;
+            line-height: 16px;
+            font-weight: 500;
+            color: #44474c;
+            margin-bottom: 0.375rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col antialiased">
+<!-- TopNavBar -->
+<nav class="bg-surface-container-lowest border-b border-outline-variant w-full z-50 docked top-0">
+<div class="flex justify-between items-center w-full px-gutter max-w-container-max mx-auto h-16">
+<div class="font-headline-sm text-headline-sm font-bold text-primary tracking-tight flex items-center gap-2"><span 1;"="" class="material-symbols-outlined" fill\"="">assured_workload</span> Smart Campus</div>
+<div class="hidden md:flex gap-8 items-center h-full">
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-secondary transition-colors duration-200 ease-in-out h-full flex items-center pt-1" href="#">Dashboard</a>
+<a class="text-primary font-body-md text-body-md font-bold border-b-2 border-secondary h-full flex items-center duration-200 ease-in-out" href="#">Submit Complaint</a>
+<a class="text-on-surface-variant font-body-md text-body-md hover:text-secondary transition-colors duration-200 ease-in-out h-full flex items-center pt-1" href="#">History</a>
+</div>
+<div class="flex items-center gap-4">
+<button aria-label="Notifications" class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center h-10 w-10 rounded-full hover:bg-surface-container-low">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+<button aria-label="Account" class="text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center h-10 rounded-full hover:bg-surface-container-low w-auto group"><div class="flex items-center gap-2 px-3">
+<span class="font-label-md text-label-md text-on-surface-variant group-hover:text-primary transition-colors">j.sterling@university.edu</span>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">logout</span>
+</div></button>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full px-gutter py-section-gap max-w-container-max mx-auto">
+<!-- Header Area -->
+<div class="mb-8 max-w-[800px] mx-auto text-center md:text-left">
+<h1 class="font-headline-lg text-headline-lg text-primary mb-2">Lodge a New Complaint</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Please provide detailed information below to help us process your request efficiently. Fields marked with an asterisk are required.</p>
+</div>
+<!-- Form Card (Bento-style clean container) -->
+<div class="max-w-[800px] mx-auto bg-surface-container-lowest border border-outline-variant rounded-xl p-6 md:p-10 shadow-sm relative overflow-hidden">
+<form action="#" class="flex flex-col gap-8 relative z-10" method="POST">
+<!-- Section 1: Basic Info -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="md:col-span-2">
+<label class="label-base" for="title">Complaint Title *</label>
+<input class="input-base" id="title" name="title" placeholder="Brief summary of the issue" required="" type="text">
+</div>
+<div>
+<label class="label-base" for="category">Category *</label>
+<select class="select-base" id="category" name="category" required="">
+<option disabled="" selected="" value="">Select a category</option>
+<option value="water">Water</option>
+<option value="electricity">Electricity</option>
+<option value="classroom">Classroom</option>
+<option value="internet">Internet</option>
+<option value="facility">Facility</option>
+</select>
+</div>
+<div>
+<label class="label-base" for="priority">Priority Level *</label>
+<select class="select-base" id="priority" name="priority" required="">
+<option disabled="" selected="" value="">Select priority</option>
+<option value="low">Low</option>
+<option value="medium">Medium</option>
+<option value="high">High</option>
+<option value="urgent">Urgent</option>
+</select>
+</div>
+<div>
+<label class="label-base" for="department">Department/Faculty</label>
+<input class="input-base" id="department" name="department" placeholder="e.g., Faculty of Science" type="text">
+</div>
+<div>
+<label class="label-base" for="location">Specific Location *</label>
+<input class="input-base" id="location" name="location" placeholder="e.g., Building C, Room 304" required="" type="text">
+</div>
+</div>
+<hr class="border-t border-outline-variant border-opacity-50">
+<!-- Section 2: Details -->
+<div>
+<label class="label-base" for="description">Detailed Description *</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface p-4 focus:outline-none focus:border-primary-container focus:ring-0 transition-all duration-200 resize-y min-h-[160px] shadow-sm hover:border-outline" id="description" name="description" placeholder="Describe the issue, steps taken, and any relevant context..." required="" rows="5"></textarea>
+</div>
+<!-- Section 3: Attachments (Drag & Drop) -->
+<div>
+<span class="label-base mb-2">Supporting Evidence (Optional)</span>
+<div class="w-full border-2 border-dashed border-outline-variant rounded-xl bg-surface-container-low hover:bg-surface transition-colors duration-200 cursor-pointer p-8 flex flex-col items-center justify-center text-center group">
+<div class="h-12 w-12 rounded-full bg-surface-container-highest flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-primary-container" style="font-size: 24px;">cloud_upload</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface mb-1"><span class="font-bold">Click to upload</span> or drag and drop</p>
+<p class="font-label-md text-label-md text-on-surface-variant">PNG, JPG, or PDF (max. 10MB)</p>
+<input class="hidden" id="file-upload" multiple="" type="file">
+</div>
+</div>
+<!-- Actions -->
+<div class="flex flex-col sm:flex-row justify-end gap-4 mt-4 pt-6 border-t border-outline-variant border-opacity-50">
+<button class="px-6 py-[12px] rounded border border-outline-variant text-primary-container font-label-md text-label-md hover:bg-surface-container-low transition-colors text-center" type="button">
+                        Save Draft
+                    </button>
+<button class="px-6 py-[12px] rounded bg-primary-container text-on-primary font-label-md text-label-md hover:bg-primary transition-colors text-center shadow-sm" type="submit">
+                        Submit Complaint
+                    </button>
+</div>
+</form>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface border-t border-outline-variant w-full mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-gutter py-base max-w-container-max mx-auto gap-4 md:gap-0 min-h-[64px]">
+<div class="font-label-md text-label-md font-bold text-primary">Â© 2024 Smart Campus. All rights reserved.</div>
+<div class="flex flex-wrap justify-center gap-6">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors opacity-80 hover:opacity-100" href="#">Privacy Policy</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors opacity-80 hover:opacity-100" href="#">Terms of Service</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors opacity-80 hover:opacity-100" href="#">Support</a>
+</div>
+</div>
+</footer>
+<script>
+        // Simple drag and drop visual interaction
+        const dropZone = document.querySelector('.border-dashed');
+        if(dropZone) {
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('bg-surface-container');
+                dropZone.classList.remove('bg-surface-container-low');
+            });
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('bg-surface-container');
+                dropZone.classList.add('bg-surface-container-low');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('bg-surface-container');
+                dropZone.classList.add('bg-surface-container-low');
+                // Handle files here in a real app
+            });
+            dropZone.addEventListener('click', () => {
+                document.getElementById('file-upload').click();
+            });
+        }
+    </script>
+
+
+</body></html>

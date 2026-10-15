@@ -1,5 +1,6 @@
 import express from 'express'
-import { requireAuth, requireRole } from '../../middleware/auth.js'
+import { authenticate } from '../../middleware/authenticate.js'
+import { authorize } from '../../middleware/authorize.js'
 import { addAdminClient } from './realtime.service.js'
 
 const router = express.Router()
@@ -7,8 +8,8 @@ const router = express.Router()
 // SSE endpoint for admin real-time updates
 router.get(
   '/admin',
-  requireAuth,
-  requireRole('ADMIN'),
+  authenticate,
+  authorize('ADMIN'),
   (req, res) => {
     // Set headers for Server-Sent Events
     res.setHeader('Content-Type', 'text/event-stream')

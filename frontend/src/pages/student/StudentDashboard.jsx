@@ -13,16 +13,15 @@ export default function StudentDashboard() {
   // Queries for metrics and recent complaints list
   const recentQuery = useMyComplaints({ page: 1, limit: 6 });
   const resolvedQuery = useMyComplaints({ status: 'resolved', page: 1, limit: 1 });
-  const pendingQuery = useMyComplaints({ status: 'open', page: 1, limit: 1 });
 
-  if (recentQuery.isLoading || resolvedQuery.isLoading || pendingQuery.isLoading) {
+  if (recentQuery.isLoading || resolvedQuery.isLoading) {
     return <Spinner fullPage />;
   }
 
   const complaints = recentQuery.data?.complaints || [];
-  const total = recentQuery.data?.pagination?.total || complaints.length;
-  const resolved = resolvedQuery.data?.pagination?.total || 0;
-  const pending = pendingQuery.data?.pagination?.total || 0;
+  const total = recentQuery.data?.pagination?.total ?? complaints.length;
+  const resolved = resolvedQuery.data?.pagination?.total ?? 0;
+  const pending = Math.max(total - resolved, 0);
 
   // Deriving display name
   const displayName = user?.name || user?.email?.split('@')[0] || 'Student';

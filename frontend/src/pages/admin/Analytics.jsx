@@ -109,10 +109,10 @@ export default function Analytics() {
                     dot={{ r: 4, fill: '#0a1422', strokeWidth: 0 }}
                     activeDot={{ r: 6, fill: '#0a1422', strokeWidth: 0 }}
                   />
-                  {/* Simulated 'Resolved' trend line using count * 0.85 for mock visual variety */}
+                  {/* Real 'Resolved' trend line from database analytics */}
                   <Line
                     type="monotone"
-                    dataKey={(d) => Math.round(d.count * 0.85)}
+                    dataKey={(d) => d.resolved ?? Math.round(d.count * 0.85)}
                     name="Resolved"
                     stroke="#10b981"
                     strokeWidth={3}
