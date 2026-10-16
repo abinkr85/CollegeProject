@@ -57,8 +57,6 @@ services:
         value: "true"
       - key: BREVO_API_KEY
         sync: false
-      - key: RESEND_API_KEY
-        sync: false
 
   # -------------------------------------------------------------
   # NLP Microservice (Python Docker Web Service)
