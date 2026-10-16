@@ -56,6 +56,7 @@ const envSchema = z.object({
   TWILIO_TIMEOUT_MS: z.coerce.number().int().min(1000).default(10000),
   SENDGRID_API_KEY: optionalEnv(z.string().min(1)),
   RESEND_API_KEY: optionalEnv(z.string().min(1)),
+  RESEND_FROM: optionalEnv(z.string().min(1)),
   BREVO_API_KEY: optionalEnv(z.string().min(1)),
   NEON_BRANCH: optionalEnv(z.string()),
   NEON_AUTH_BASE_URL: optionalEnv(z.string().url()),

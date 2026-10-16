@@ -75,7 +75,7 @@ const sendViaResend = async (to, code) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: config.EMAIL_FROM || 'Smart Campus <onboarding@resend.dev>',
+      from: config.RESEND_FROM || 'Smart Campus <onboarding@resend.dev>',
       to: [to],
       subject: msg.subject,
       text: msg.text,
