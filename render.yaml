@@ -45,19 +45,31 @@ services:
       - key: NLP_SERVICE_URL
         value: https://smart-campus-nlp.onrender.com
       - key: STUDENT_CLIENT_URL
-        fromStaticSite:
-          name: smart-campus-student
-          property: url
+        value: https://smart-campus-student.onrender.com
       - key: ADMIN_CLIENT_URL
-        fromStaticSite:
-          name: smart-campus-admin
-          property: url
+        value: https://smart-campus-admin.onrender.com
       - key: CLIENT_URL
-        fromStaticSite:
-          name: smart-campus-student
-          property: url
+        value: https://smart-campus-student.onrender.com
       - key: ADMIN_REGISTRATION_KEY
         sync: false
+
+  # -------------------------------------------------------------
+  # NLP Microservice (Python Docker Web Service)
+  # -------------------------------------------------------------
+  - type: web
+    name: smart-campus-nlp
+    runtime: docker
+    dockerfilePath: ./nlp-service/Dockerfile
+    dockerContext: ./nlp-service
+    plan: free
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 5001
+      - key: ENVIRONMENT
+        value: production
+      - key: NLP_REQUIRE_SECRET
+        value: false
 
   # -------------------------------------------------------------
   # Student Portal (Vite React Static Site)
@@ -74,10 +86,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: smart-campus-backend
-          property: url
+        value: https://smart-campus-backend.onrender.com
       - key: VITE_PORTAL
         value: student
 
@@ -96,9 +105,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: smart-campus-backend
-          property: url
+        value: https://smart-campus-backend.onrender.com
       - key: VITE_PORTAL
         value: admin

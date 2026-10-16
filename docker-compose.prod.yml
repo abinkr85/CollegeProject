@@ -20,6 +20,7 @@ services:
       - backend
 
   backend:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-backend:latest
     build: ./backend
     restart: unless-stopped
     env_file: ./backend/.env
@@ -36,28 +37,31 @@ services:
       sh -c "npx prisma migrate deploy && node src/server.js"
 
   student-frontend:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-student-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
         VITE_PORTAL: student
-        VITE_API_URL: https://${API_DOMAIN}
+        VITE_API_URL: https://${API_DOMAIN:-smart-campus-backend.onrender.com}
     restart: unless-stopped
     expose:
       - "80"
 
   admin-frontend:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-admin-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
         VITE_PORTAL: admin
-        VITE_API_URL: https://${API_DOMAIN}
+        VITE_API_URL: https://${API_DOMAIN:-smart-campus-backend.onrender.com}
     restart: unless-stopped
     expose:
       - "80"
 
   nlp-service:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-nlp:latest
     build: ./nlp-service
     restart: unless-stopped
     expose:

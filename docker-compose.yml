@@ -1,5 +1,6 @@
 services:
   backend:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-backend:dev
     build: ./backend
     ports:
       - "5000:5000"
@@ -15,6 +16,7 @@ services:
       sh -c "npx prisma migrate deploy && node src/server.js"
 
   student-frontend:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-student-frontend:dev
     build: ./frontend
     ports:
       - "5173:5173"
@@ -26,6 +28,7 @@ services:
     command: npm run dev:student
 
   admin-frontend:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-admin-frontend:dev
     build: ./frontend
     ports:
       - "5174:5174"
@@ -37,6 +40,7 @@ services:
     command: npm run dev:admin
 
   nlp-service:
+    image: ${DOCKERHUB_USERNAME:-abinkrdev}/smart-campus-nlp:dev
     build: ./nlp-service
     expose:
       - "5001"

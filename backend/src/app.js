@@ -10,6 +10,7 @@ import mongoSanitize from 'express-mongo-sanitize'
 import { Sentry } from './config/sentry.js'
 
 import { config } from './config/index.js'
+import { prisma } from './config/prisma.js'
 import { logger } from './utils/logger.js'
 import { generalLimiter } from './middleware/rateLimiter.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -151,6 +152,58 @@ export const createApp = () => {
       requestId: req.id,
     })
   )
+
+  app.get('/api/neon/status', async (req, res) => {
+    let dbStatus = 'disconnected'
+    let dbInfo = null
+    try {
+      const [resDb] = await prisma.$queryRaw`SELECT version(), current_database() as db_name, current_user as db_user`
+      dbStatus = 'connected'
+      dbInfo = resDb
+    } catch (err) {
+      dbStatus = `error: ${err.message}`
+    }
+
+    let functionStatus = 'not_configured'
+    if (config.NEON_FUNCTION_HELLO_BASE_URL) {
+      try {
+        const resp = await fetch(config.NEON_FUNCTION_HELLO_BASE_URL)
+        const text = await resp.text()
+        functionStatus = resp.ok ? `ok: ${text.trim()}` : `http_${resp.status}`
+      } catch (err) {
+        functionStatus = `error: ${err.message}`
+      }
+    }
+
+    let authStatus = 'not_configured'
+    if (config.NEON_AUTH_JWKS_URL) {
+      try {
+        const resp = await fetch(config.NEON_AUTH_JWKS_URL)
+        authStatus = resp.ok ? 'ok (jwks reachable)' : `http_${resp.status}`
+      } catch (err) {
+        authStatus = `error: ${err.message}`
+      }
+    }
+
+    res.json({
+      status: 'ok',
+      neon: {
+        branch: config.NEON_BRANCH || 'production',
+        postgres: {
+          status: dbStatus,
+          info: dbInfo,
+        },
+        auth: {
+          baseUrl: config.NEON_AUTH_BASE_URL,
+          status: authStatus,
+        },
+        functions: {
+          helloUrl: config.NEON_FUNCTION_HELLO_BASE_URL,
+          status: functionStatus,
+        },
+      },
+    })
+  })
 
   if (config.NODE_ENV !== 'production') {
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
