@@ -66,7 +66,75 @@ const sendViaSendGrid = async (to, code) => {
   logger.info({ to }, 'SendGrid OTP email sent')
 }
 
+const sendViaResend = async (to, code) => {
+  const msg = createOtpMessage(to, code)
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: config.EMAIL_FROM || 'Smart Campus <onboarding@resend.dev>',
+      to: [to],
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+    }),
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    throw new Error(`Resend HTTP ${res.status}: ${errBody}`)
+  }
+
+  logger.info({ to }, 'Resend OTP email sent successfully over HTTPS')
+}
+
+const sendViaBrevo = async (to, code) => {
+  const msg = createOtpMessage(to, code)
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': config.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'Smart Campus', email: config.EMAIL_FROM || config.EMAIL_USER || 'smartcampus96@gmail.com' },
+      to: [{ email: to }],
+      subject: msg.subject,
+      textContent: msg.text,
+      htmlContent: msg.html,
+    }),
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    throw new Error(`Brevo HTTP ${res.status}: ${errBody}`)
+  }
+
+  logger.info({ to }, 'Brevo OTP email sent successfully over HTTPS')
+}
+
 export const sendOtpEmail = async (to, code) => {
+  if (config.RESEND_API_KEY) {
+    try {
+      await sendViaResend(to, code)
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to }, 'Failed to send OTP email via Resend')
+    }
+  }
+
+  if (config.BREVO_API_KEY) {
+    try {
+      await sendViaBrevo(to, code)
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to }, 'Failed to send OTP email via Brevo')
+    }
+  }
+
   if (isSendGridConfigured) {
     try {
       await sendViaSendGrid(to, code)
@@ -85,7 +153,7 @@ export const sendOtpEmail = async (to, code) => {
     }
   }
 
-  logger.warn({ to, code }, 'OTP code generated (delivery via SMTP/SendGrid unavailable on cloud host; code logged and provided in challenge response)')
+  logger.warn({ to, code }, 'OTP code generated (no working email provider was able to deliver to recipient)')
   return
 }
 

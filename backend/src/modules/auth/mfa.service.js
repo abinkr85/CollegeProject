@@ -77,7 +77,6 @@ export const createMfaChallenge = async (user) => {
       channel: 'email',
       destination: maskEmail(user.email),
     },
-    demoOtp: code,
   }
 }
 
