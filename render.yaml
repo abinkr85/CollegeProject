@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 services:
   # -------------------------------------------------------------
   # Backend API (Node.js Docker Web Service)
