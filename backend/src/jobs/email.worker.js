@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer'
 import { redis } from '../config/redis.js'
 import { config } from '../config/index.js'
 import { logger } from '../utils/logger.js'
+import { sendGenericEmail } from '../services/email.service.js'
 
 const normalizeEmailPassword = (value = '') =>
   config.EMAIL_HOST === 'smtp.gmail.com' ? value.replace(/\s+/g, '') : value
@@ -20,9 +21,10 @@ const transporter = nodemailer.createTransport({
 })
 
 const canSendEmail = () =>
-  config.EMAIL_USER !== 'your@gmail.com' &&
+  Boolean(config.BREVO_API_KEY) ||
+  (config.EMAIL_USER !== 'your@gmail.com' &&
   emailPassword !== 'your-gmail-app-password' &&
-  emailPassword.length > 0
+  emailPassword.length > 0)
 
 const escapeHtml = (value = '') =>
   String(value)
@@ -119,14 +121,13 @@ export const emailWorker = new Worker(
       return
     }
 
-    await transporter.sendMail({
-      from: config.EMAIL_FROM,
+    await sendGenericEmail({
       to: job.data.to,
       subject,
       html,
     })
 
-    logger.info({ jobName: job.name, to: job.data.to }, 'Email sent')
+    logger.info({ jobName: job.name, to: job.data.to }, 'Email job processed')
   },
   {
     connection: redis,

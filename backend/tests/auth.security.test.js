@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     ACCOUNT_LOCKOUT_MINUTES: 5,
     ADMIN_REGISTRATION_KEY: 'valid-admin-registration-key',
     JWT_ACCESS_EXPIRY: '15m',
+    MFA_ENABLED: true,
   },
   emailQueue: {
     add: vi.fn(),

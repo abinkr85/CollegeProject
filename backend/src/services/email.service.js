@@ -157,4 +157,54 @@ export const sendOtpEmail = async (to, code) => {
   return
 }
 
+export const sendGenericEmail = async ({ to, subject, html, text }) => {
+  if (config.BREVO_API_KEY) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': config.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'Smart Campus', email: config.EMAIL_FROM || config.EMAIL_USER || 'smartcampus96@gmail.com' },
+          to: [{ email: to }],
+          subject,
+          textContent: text || html?.replace(/<[^>]*>/g, '') || '',
+          htmlContent: html,
+        }),
+      })
+
+      if (!res.ok) {
+        const errBody = await res.text()
+        throw new Error(`Brevo HTTP ${res.status}: ${errBody}`)
+      }
+
+      logger.info({ to, subject }, 'Email sent successfully via Brevo over HTTPS')
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to, subject }, 'Failed to send generic email via Brevo')
+    }
+  }
+
+  if (canSendSmtpEmail()) {
+    try {
+      await smtpTransporter.sendMail({
+        from: config.EMAIL_FROM,
+        to,
+        subject,
+        html,
+        text,
+      })
+      logger.info({ to, subject }, 'Email sent via SMTP')
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to, subject }, 'Failed to send generic email via SMTP')
+    }
+  }
+
+  logger.warn({ to, subject }, 'No working email provider available for generic email')
+}
+
 export const sendSendGridOtp = sendOtpEmail
+
