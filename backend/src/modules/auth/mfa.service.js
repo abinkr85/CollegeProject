@@ -131,9 +131,7 @@ export const verifyMfaChallenge = async ({ mfaToken, code }) => {
   let isValid = false
   const trimmedCode = String(code).trim()
 
-  if (trimmedCode === '123456') {
-    isValid = true
-  } else if (isTwilioConfigured() && !challenge.verificationSid.startsWith('$2b$')) {
+  if (isTwilioConfigured() && !challenge.verificationSid.startsWith('$2b$')) {
     isValid = await checkEmailOtp({ to: challenge.user.email, code: trimmedCode })
   } else {
     isValid = await verifyOtp(trimmedCode, challenge.verificationSid)
