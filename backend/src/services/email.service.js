@@ -117,21 +117,21 @@ const sendViaBrevo = async (to, code) => {
 }
 
 export const sendOtpEmail = async (to, code) => {
-  if (config.RESEND_API_KEY) {
-    try {
-      await sendViaResend(to, code)
-      return
-    } catch (error) {
-      logger.error({ error: error.message, to }, 'Failed to send OTP email via Resend')
-    }
-  }
-
   if (config.BREVO_API_KEY) {
     try {
       await sendViaBrevo(to, code)
       return
     } catch (error) {
       logger.error({ error: error.message, to }, 'Failed to send OTP email via Brevo')
+    }
+  }
+
+  if (config.RESEND_API_KEY) {
+    try {
+      await sendViaResend(to, code)
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to }, 'Failed to send OTP email via Resend')
     }
   }
 
