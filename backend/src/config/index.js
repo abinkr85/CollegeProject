@@ -12,6 +12,12 @@ const optionalEnv = (schema) =>
     schema.optional()
   )
 
+const booleanEnv = (defaultVal = false) =>
+  z.preprocess(
+    value => value === 'true' || value === true || value === '1',
+    z.boolean()
+  ).default(defaultVal)
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
@@ -27,7 +33,7 @@ const envSchema = z.object({
   MFA_CODE_EXPIRY_MINUTES: z.coerce.number().int().min(1).default(5),
   MFA_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
   MFA_PROVIDER: z.enum(['twilio', 'smtp', 'sendgrid']).default('smtp'),
-  MFA_ENABLED: z.coerce.boolean().default(false),
+  MFA_ENABLED: booleanEnv(false),
   NLP_SERVICE_URL: z.string().url(),
   NLP_TIMEOUT_MS: z.coerce.number().default(5000),
   CLOUDINARY_CLOUD_NAME: z.string(),
