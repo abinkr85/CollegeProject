@@ -93,7 +93,14 @@ export const registerUser = async (dto, { expectedRole } = {}) => {
     }
   )
 
-  return user
+  const { accessToken, refreshToken } = await generateTokenPair(user)
+
+  return {
+    ...user,
+    accessToken,
+    refreshToken,
+    user,
+  }
 }
 
 export const loginUser = async (dto, { expectedRole } = {}) => {
@@ -163,11 +170,26 @@ export const loginUser = async (dto, { expectedRole } = {}) => {
     },
   })
 
-  const challenge = await createMfaChallenge(user)
+  if (config.MFA_ENABLED) {
+    const challenge = await createMfaChallenge(user)
+    return {
+      mfaRequired: true,
+      ...challenge,
+    }
+  }
+
+  const { accessToken, refreshToken } = await generateTokenPair(user)
 
   return {
-    mfaRequired: true,
-    ...challenge,
+    mfaRequired: false,
+    accessToken,
+    refreshToken,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
   }
 }
 

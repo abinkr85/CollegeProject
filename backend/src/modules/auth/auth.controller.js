@@ -4,23 +4,37 @@ import { UnauthorizedError } from '../../utils/ApiError.js'
 import { clearRefreshTokenCookie, setRefreshTokenCookie } from './token.service.js'
 
 export const registerStudent = async (req, res) => {
-  const user = await authService.registerUser(req.body, { expectedRole: 'STUDENT' })
-  return ApiResponse.created(res, user, 'Student account created successfully')
+  const result = await authService.registerUser(req.body, { expectedRole: 'STUDENT' })
+  if (result.refreshToken) {
+    setRefreshTokenCookie(res, result.refreshToken)
+  }
+  return ApiResponse.created(res, result, 'Student account created successfully')
 }
 
 export const registerAdmin = async (req, res) => {
-  const user = await authService.registerUser(req.body, { expectedRole: 'ADMIN' })
-  return ApiResponse.created(res, user, 'Admin account created successfully')
+  const result = await authService.registerUser(req.body, { expectedRole: 'ADMIN' })
+  if (result.refreshToken) {
+    setRefreshTokenCookie(res, result.refreshToken)
+  }
+  return ApiResponse.created(res, result, 'Admin account created successfully')
 }
 
 export const loginStudent = async (req, res) => {
   const result = await authService.loginUser(req.body, { expectedRole: 'STUDENT' })
-  return ApiResponse.ok(res, result, 'Student verification code sent')
+  if (result.refreshToken) {
+    setRefreshTokenCookie(res, result.refreshToken)
+  }
+  const message = result.mfaRequired ? 'Student verification code sent' : 'Student login successful'
+  return ApiResponse.ok(res, result, message)
 }
 
 export const loginAdmin = async (req, res) => {
   const result = await authService.loginUser(req.body, { expectedRole: 'ADMIN' })
-  return ApiResponse.ok(res, result, 'Admin verification code sent')
+  if (result.refreshToken) {
+    setRefreshTokenCookie(res, result.refreshToken)
+  }
+  const message = result.mfaRequired ? 'Admin verification code sent' : 'Admin login successful'
+  return ApiResponse.ok(res, result, message)
 }
 
 export const verifyStudentMfa = async (req, res) => {

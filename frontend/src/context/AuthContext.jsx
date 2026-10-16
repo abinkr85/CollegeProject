@@ -93,9 +93,24 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async (email, password) => {
-      return loginUser({ email, password }, PORTAL_ROLE);
+      const data = await loginUser({ email, password }, PORTAL_ROLE);
+      if (data.accessToken) {
+        applySession(data.accessToken, data.user);
+      }
+      return data;
     },
-    []
+    [applySession]
+  );
+
+  const register = useCallback(
+    async (payload) => {
+      const data = await registerUser(payload, PORTAL_ROLE);
+      if (data.accessToken) {
+        applySession(data.accessToken, data.user);
+      }
+      return data;
+    },
+    [applySession]
   );
 
   const verifyMfa = useCallback(
@@ -157,11 +172,12 @@ export function AuthProvider({ children }) {
       user,
       accessToken,
       login,
+      register,
       verifyMfa,
       logout,
       isLoading
     }),
-    [accessToken, isLoading, login, logout, user, verifyMfa]
+    [accessToken, isLoading, login, logout, register, user, verifyMfa]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

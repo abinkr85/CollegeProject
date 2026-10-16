@@ -68,6 +68,11 @@ export default function Login() {
     loginSubmitBusy.current = true;
     try {
       const data = await login(values.email, values.password);
+      if (data?.accessToken) {
+        toast.success(`Welcome back, ${data.user?.name || 'User'}!`);
+        navigate(PORTAL_HOME_PATH, { replace: true });
+        return;
+      }
       setPendingEmail(values.email);
       setMfaChallenge(data);
       toast.info(`Verification code sent to ${data.delivery?.destination || 'your email'}`);

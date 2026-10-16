@@ -36,7 +36,7 @@ function parseApiError(error) {
 
 export default function Register() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, register: authRegister } = useAuth();
   const {
     register,
     handleSubmit,
@@ -57,8 +57,13 @@ export default function Register() {
 
   async function onSubmit(values) {
     try {
-      await registerUser(values, PORTAL_ROLE);
-      toast.success(`${PORTAL_ROLE_LABEL} account created. Sign in and verify the code sent to your email.`);
+      const data = await authRegister(values);
+      if (data?.accessToken) {
+        toast.success(`Account created! Welcome, ${data.user?.name || values.name}!`);
+        navigate(PORTAL_HOME_PATH, { replace: true });
+        return;
+      }
+      toast.success(`${PORTAL_ROLE_LABEL} account created successfully. Please sign in.`);
       navigate(PORTAL_LOGIN_PATH, { replace: true });
     } catch (error) {
       toast.error(parseApiError(error));

@@ -27,6 +27,7 @@ const envSchema = z.object({
   MFA_CODE_EXPIRY_MINUTES: z.coerce.number().int().min(1).default(5),
   MFA_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(5),
   MFA_PROVIDER: z.enum(['twilio', 'smtp', 'sendgrid']).default('smtp'),
+  MFA_ENABLED: z.coerce.boolean().default(false),
   NLP_SERVICE_URL: z.string().url(),
   NLP_TIMEOUT_MS: z.coerce.number().default(5000),
   CLOUDINARY_CLOUD_NAME: z.string(),

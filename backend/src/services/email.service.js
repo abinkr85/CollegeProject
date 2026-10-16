@@ -20,6 +20,10 @@ const smtpTransporter = nodemailer.createTransport({
   host: config.EMAIL_HOST,
   port: config.EMAIL_PORT,
   secure: config.EMAIL_PORT === 465,
+  family: 4,
+  connectionTimeout: 4000,
+  greetingTimeout: 4000,
+  socketTimeout: 4000,
   auth: {
     user: config.EMAIL_USER,
     pass: emailPassword,
@@ -77,17 +81,16 @@ export const sendOtpEmail = async (to, code) => {
       await sendViaSmtp(to, code)
       return
     } catch (error) {
-      logger.error({ error, to }, 'Failed to send OTP email via SMTP')
+      logger.error({ error: error.message, to }, 'Failed to send OTP email via SMTP')
     }
   }
 
-  if (config.NODE_ENV !== 'production') {
-    logger.warn('OTP email provider is not configured. Logging OTP code for development only.')
-    logger.info({ to, code }, 'OTP code generated (Development Mode)')
+  logger.warn({ to, code }, 'OTP code generated (fallback logger - check server logs if email did not arrive)')
+  if (config.NODE_ENV !== 'production' || !config.MFA_ENABLED) {
     return
   }
 
-  throw new ServiceUnavailableError('Could not send verification code. Please try again later.')
+  throw new ServiceUnavailableError('Could not send verification code. Please check your email configuration or contact admin.')
 }
 
 export const sendSendGridOtp = sendOtpEmail

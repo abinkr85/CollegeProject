@@ -53,6 +53,8 @@ services:
         value: https://student-frontend-8w2s.onrender.com
       - key: ADMIN_REGISTRATION_KEY
         sync: false
+      - key: MFA_ENABLED
+        value: "false"
 
   # -------------------------------------------------------------
   # NLP Microservice (Python Docker Web Service)

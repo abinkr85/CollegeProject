@@ -26,7 +26,7 @@ export async function registerUser(payload, role) {
   const { data } = await axiosInstance.post(`/api/auth/${segment}/register`, payload, {
     skipAuthRefresh: true
   });
-  return normalizeUser(unwrapEnvelope(data));
+  return normalizeAuthPayload(unwrapEnvelope(data));
 }
 
 export async function loginUser(payload, role) {
@@ -34,7 +34,7 @@ export async function loginUser(payload, role) {
   const { data } = await axiosInstance.post(`/api/auth/${segment}/login`, payload, {
     skipAuthRefresh: true
   });
-  return unwrapEnvelope(data);
+  return normalizeAuthPayload(unwrapEnvelope(data));
 }
 
 export async function verifyMfaLogin(payload, role) {
