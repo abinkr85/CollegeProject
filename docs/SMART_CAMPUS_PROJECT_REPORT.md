@@ -231,9 +231,10 @@ Using Docker (the recommended approach):
 ## 18. Public Access
 
 Public URLs rely on the deployed Render environments:
-- Student Portal: `https://smart-campus-student.onrender.com`
-- Admin Portal: `https://smart-campus-admin.onrender.com`
-- Backend API: `https://smart-campus-backend.onrender.com`
+- Student Portal: `https://student-frontend-8w2s.onrender.com`
+- Admin Portal: `https://admin-frontend-5d1n.onrender.com`
+- Backend API: `https://backend-9tut.onrender.com`
+- NLP Microservice: `https://nlp-service-ixwy.onrender.com`
 
 ## 19. PageSpeed Insights Results
 

@@ -3,8 +3,10 @@
 A comprehensive complaint management platform for campus environments that enables students to submit complaints and allows administrators to track, analyze, and resolve issues efficiently.
 
 ### 🔗 Live Demo
-- **Student Portal:** https://smart-campus-student.onrender.com
-- **Admin Portal:** https://smart-campus-admin.onrender.com
+- **Student Portal:** https://student-frontend-8w2s.onrender.com
+- **Admin Portal:** https://admin-frontend-5d1n.onrender.com
+- **Backend API:** https://backend-9tut.onrender.com
+- **NLP Service:** https://nlp-service-ixwy.onrender.com
 
 ---
 

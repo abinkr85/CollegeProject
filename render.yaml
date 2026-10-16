@@ -44,13 +44,13 @@ services:
       - key: EMAIL_FROM
         sync: false
       - key: NLP_SERVICE_URL
-        value: https://smart-campus-nlp.onrender.com
+        value: https://nlp-service-ixwy.onrender.com
       - key: STUDENT_CLIENT_URL
-        value: https://smart-campus-student.onrender.com
+        value: https://student-frontend-8w2s.onrender.com
       - key: ADMIN_CLIENT_URL
-        value: https://smart-campus-admin.onrender.com
+        value: https://admin-frontend-5d1n.onrender.com
       - key: CLIENT_URL
-        value: https://smart-campus-student.onrender.com
+        value: https://student-frontend-8w2s.onrender.com
       - key: ADMIN_REGISTRATION_KEY
         sync: false
 
@@ -87,7 +87,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://smart-campus-backend.onrender.com
+        value: https://backend-9tut.onrender.com
       - key: VITE_PORTAL
         value: student
 
@@ -106,6 +106,6 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://smart-campus-backend.onrender.com
+        value: https://backend-9tut.onrender.com
       - key: VITE_PORTAL
         value: admin
