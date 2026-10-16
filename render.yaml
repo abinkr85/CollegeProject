@@ -54,7 +54,7 @@ services:
       - key: ADMIN_REGISTRATION_KEY
         sync: false
       - key: MFA_ENABLED
-        value: "false"
+        value: "true"
 
   # -------------------------------------------------------------
   # NLP Microservice (Python Docker Web Service)

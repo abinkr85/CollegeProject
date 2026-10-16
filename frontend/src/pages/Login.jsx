@@ -51,6 +51,7 @@ export default function Login() {
   const {
     control,
     handleSubmit: handleMfaSubmit,
+    setValue: setMfaValue,
     formState: { errors: mfaErrors, isSubmitting: isVerifying }
   } = useForm({
     resolver: zodResolver(mfaSchema),
@@ -75,7 +76,11 @@ export default function Login() {
       }
       setPendingEmail(values.email);
       setMfaChallenge(data);
-      toast.info(`Verification code sent to ${data.delivery?.destination || 'your email'}`);
+      if (data?.demoOtp) {
+        toast.info(`Verification code: ${data.demoOtp}`, { autoClose: 10000 });
+      } else {
+        toast.info(`Verification code sent to ${data.delivery?.destination || 'your email'}`);
+      }
     } catch (error) {
       const message = parseApiError(error);
       if (message === 'Invalid email or password') {
@@ -149,7 +154,23 @@ export default function Login() {
                 Enter the 6-digit code sent to {mfaChallenge.delivery?.destination || pendingEmail}.
               </p>
 
-              <form className="mt-8 space-y-6 text-left" onSubmit={handleMfaSubmit(onVerifyMfa)}>
+              {mfaChallenge.demoOtp && (
+                <div className="mt-4 p-3 bg-primary-container/20 border border-primary/20 rounded-xl text-center">
+                  <p className="text-xs text-on-surface-variant font-medium">Verification Code</p>
+                  <div className="flex items-center justify-center gap-3 mt-1">
+                    <span className="font-mono text-xl font-bold tracking-widest text-primary">{mfaChallenge.demoOtp}</span>
+                    <button
+                      type="button"
+                      onClick={() => setMfaValue('code', mfaChallenge.demoOtp)}
+                      className="text-xs bg-primary text-on-primary px-2.5 py-1 rounded-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+                    >
+                      Auto-fill
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <form className="mt-6 space-y-6 text-left" onSubmit={handleMfaSubmit(onVerifyMfa)}>
                 <Controller
                   name="code"
                   control={control}
