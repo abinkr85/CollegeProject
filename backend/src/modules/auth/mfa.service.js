@@ -50,8 +50,8 @@ export const createMfaChallenge = async (user) => {
   } else {
     const codeHash = await hashOtp(code)
     verificationSid = codeHash
-    sendOtpEmail(user.email, code).catch((err) => {
-      logger.warn({ error: err.message, to: user.email }, 'SMTP delivery skipped on cloud host')
+    await sendOtpEmail(user.email, code).catch((err) => {
+      logger.warn({ error: err.message, to: user.email }, 'Email delivery failed on cloud host')
     })
   }
 
