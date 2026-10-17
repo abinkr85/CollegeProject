@@ -1,15 +1,8 @@
-import sgMail from '@sendgrid/mail'
 import nodemailer from 'nodemailer'
 import { config } from '../config/index.js'
 import { logger } from '../utils/logger.js'
 import { ServiceUnavailableError } from '../utils/ApiError.js'
 
-let isSendGridConfigured = false
-
-if (config.SENDGRID_API_KEY) {
-  sgMail.setApiKey(config.SENDGRID_API_KEY)
-  isSendGridConfigured = true
-}
 
 const normalizeEmailPassword = (value = '') =>
   config.EMAIL_HOST === 'smtp.gmail.com' ? value.replace(/\s+/g, '') : value
@@ -37,7 +30,7 @@ const canSendSmtpEmail = () =>
 
 const createOtpMessage = (to, code) => ({
   to,
-  from: config.EMAIL_FROM || 'noreply@smartcampus.com',
+  from: config.EMAIL_FROM || config.EMAIL_USER || 'smartcampus96@gmail.com',
   subject: 'Your Smart Campus Login Verification Code',
   text: `Your verification code is: ${code}. It will expire in ${config.MFA_CODE_EXPIRY_MINUTES || 5} minutes.`,
   html: `<strong>Your verification code is: ${code}</strong><br/>It will expire in ${config.MFA_CODE_EXPIRY_MINUTES || 5} minutes.`,
@@ -55,40 +48,6 @@ const sendViaSmtp = async (to, code) => {
   })
 
   logger.info({ to }, 'SMTP OTP email sent')
-}
-
-const sendViaSendGrid = async (to, code) => {
-  const msg = {
-    ...createOtpMessage(to, code),
-  }
-
-  await sgMail.send(msg)
-  logger.info({ to }, 'SendGrid OTP email sent')
-}
-
-const sendViaResend = async (to, code) => {
-  const msg = createOtpMessage(to, code)
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: config.RESEND_FROM || 'Smart Campus <onboarding@resend.dev>',
-      to: [to],
-      subject: msg.subject,
-      text: msg.text,
-      html: msg.html,
-    }),
-  })
-
-  if (!res.ok) {
-    const errBody = await res.text()
-    throw new Error(`Resend HTTP ${res.status}: ${errBody}`)
-  }
-
-  logger.info({ to }, 'Resend OTP email sent successfully over HTTPS')
 }
 
 const sendViaBrevo = async (to, code) => {
@@ -123,24 +82,6 @@ export const sendOtpEmail = async (to, code) => {
       return
     } catch (error) {
       logger.error({ error: error.message, to }, 'Failed to send OTP email via Brevo')
-    }
-  }
-
-  if (config.RESEND_API_KEY) {
-    try {
-      await sendViaResend(to, code)
-      return
-    } catch (error) {
-      logger.error({ error: error.message, to }, 'Failed to send OTP email via Resend')
-    }
-  }
-
-  if (isSendGridConfigured) {
-    try {
-      await sendViaSendGrid(to, code)
-      return
-    } catch (error) {
-      logger.error({ error, to }, 'Failed to send OTP email via SendGrid')
     }
   }
 
