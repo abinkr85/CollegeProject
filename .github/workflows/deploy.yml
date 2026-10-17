@@ -29,10 +29,28 @@ jobs:
 
       - name: Generate Prisma Client
         working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/testdb"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/testdb"
         run: npx prisma generate
 
       - name: Run Backend Test Suite (Vitest)
         working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/testdb"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/testdb"
+          REDIS_URL: "redis://localhost:6379"
+          JWT_ACCESS_SECRET: "test-jwt-access-secret-minimum-32-characters-long"
+          JWT_REFRESH_SECRET: "test-jwt-refresh-secret-minimum-32-characters-long"
+          NLP_SERVICE_URL: "http://localhost:5001"
+          CLOUDINARY_CLOUD_NAME: "test"
+          CLOUDINARY_API_KEY: "test"
+          CLOUDINARY_API_SECRET: "test"
+          EMAIL_USER: "test@example.com"
+          EMAIL_PASS: "test"
+          EMAIL_FROM: "noreply@example.com"
+          CLIENT_URL: "http://localhost:5173"
         run: npm test
 
   # ============================================================
@@ -89,7 +107,9 @@ jobs:
 
       - name: Run NLP Test Suite (Pytest)
         working-directory: nlp-service
-        run: pytest tests/
+        env:
+          PYTHONPATH: .
+        run: python -m pytest tests/
 
   # ============================================================
   # 4. Continuous Deployment: Render & Docker Hub
@@ -99,6 +119,12 @@ jobs:
     needs: [backend-ci, frontend-ci, nlp-ci]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_BACKEND_DEPLOY_HOOK: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+      RENDER_NLP_DEPLOY_HOOK: ${{ secrets.RENDER_NLP_DEPLOY_HOOK }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -107,14 +133,14 @@ jobs:
       # Optional: Docker Hub build and push
       # --------------------------------------------------------
       - name: Log in to Docker Hub
-        if: secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push backend image
-        if: secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/build-push-action@v6
         with:
           context: backend
@@ -122,7 +148,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/smart-campus-backend:latest
 
       - name: Build and push NLP image
-        if: secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
         uses: docker/build-push-action@v6
         with:
           context: nlp-service
@@ -133,7 +159,7 @@ jobs:
       # Trigger Render Deployments via Render API
       # --------------------------------------------------------
       - name: Trigger Render Service Deployments via API
-        if: secrets.RENDER_API_KEY != ''
+        if: env.RENDER_API_KEY != ''
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: |
@@ -156,11 +182,11 @@ jobs:
       # Fallback: Trigger Deploy Hooks if configured
       # --------------------------------------------------------
       - name: Trigger Render Backend Deploy Hook
-        if: secrets.RENDER_BACKEND_DEPLOY_HOOK != ''
+        if: env.RENDER_BACKEND_DEPLOY_HOOK != ''
         run: curl -fsS -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}"
 
       - name: Trigger Render NLP Deploy Hook
-        if: secrets.RENDER_NLP_DEPLOY_HOOK != ''
+        if: env.RENDER_NLP_DEPLOY_HOOK != ''
         run: curl -fsS -X POST "${{ secrets.RENDER_NLP_DEPLOY_HOOK }}"
 
       # --------------------------------------------------------
