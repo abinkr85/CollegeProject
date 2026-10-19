@@ -7,7 +7,10 @@ import { asyncHandler } from '../../utils/asyncHandler.js'
 import {
   adminRegisterSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
+  resendMfaSchema,
+  resetPasswordSchema,
   studentRegisterSchema,
   verifyMfaSchema,
 } from './auth.schema.js'
@@ -67,6 +70,7 @@ router.post('/student/login/verify-mfa', authLimiter, validate({ body: verifyMfa
  *     tags: [Auth]
  */
 router.post('/admin/login/verify-mfa', authLimiter, validate({ body: verifyMfaSchema }), asyncHandler(controller.verifyAdminMfa))
+router.post('/login/resend-mfa', authLimiter, validate({ body: resendMfaSchema }), asyncHandler(controller.resendMfa))
 
 router.post('/refresh', asyncHandler(controller.refresh))
 router.post('/logout', authenticate, asyncHandler(controller.logout))
@@ -76,6 +80,20 @@ router.patch(
   authenticate,
   validate({ body: changePasswordSchema }),
   asyncHandler(controller.changePassword)
+)
+
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate({ body: forgotPasswordSchema }),
+  asyncHandler(controller.forgotPassword)
+)
+
+router.post(
+  '/reset-password',
+  authLimiter,
+  validate({ body: resetPasswordSchema }),
+  asyncHandler(controller.resetPassword)
 )
 
 export default router

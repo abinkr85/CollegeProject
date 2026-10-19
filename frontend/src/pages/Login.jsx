@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowRight, Lock, Mail } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { ArrowRight, Lock, Mail, RefreshCw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { z } from 'zod';
+import { resendMfaLogin } from '../api/authApi';
 import { useAuth } from '../hooks/useAuth';
 import { PORTAL_HOME_PATH, PORTAL_ROLE, PORTAL_ROLE_LABEL } from '../portalConfig';
 import Button from '../components/ui/Button';
@@ -22,9 +23,10 @@ const mfaSchema = z.object({
 
 function parseApiError(error) {
   if (!error.response) return 'Unable to connect to the server. Check your connection and try again.';
-  if (error.response.status === 401) return 'Your session has expired. Please log in again.';
+  if (error.response.data?.message) return error.response.data.message;
+  if (error.response.status === 401) return 'Invalid email or password.';
   if (error.response.status === 403) return 'You do not have permission to perform this action.';
-  return error.response?.data?.message || 'We could not complete this action. Please try again.';
+  return 'We could not complete this action. Please try again.';
 }
 
 export default function Login() {
@@ -32,9 +34,11 @@ export default function Login() {
   const { user, login, verifyMfa } = useAuth();
   const [mfaChallenge, setMfaChallenge] = useState(null);
   const [pendingEmail, setPendingEmail] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   
   const loginSubmitBusy = useRef(false);
   const mfaSubmitBusy = useRef(false);
+  const resendBusy = useRef(false);
 
   const {
     register,
@@ -60,6 +64,15 @@ export default function Login() {
     }
   });
 
+  // Cooldown countdown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   if (user) {
     return <Navigate to={PORTAL_HOME_PATH} replace />;
   }
@@ -76,6 +89,7 @@ export default function Login() {
       }
       setPendingEmail(values.email);
       setMfaChallenge(data);
+      setResendCooldown(60);
       toast.info(`Verification code sent to ${data.delivery?.destination || 'your email'}`);
     } catch (error) {
       const message = parseApiError(error);
@@ -86,6 +100,26 @@ export default function Login() {
       }
     } finally {
       loginSubmitBusy.current = false;
+    }
+  }
+
+  async function onResendMfa() {
+    if (resendBusy.current || resendCooldown > 0 || !mfaChallenge?.mfaToken) return;
+    resendBusy.current = true;
+    try {
+      const data = await resendMfaLogin({ mfaToken: mfaChallenge.mfaToken });
+      if (data?.mfaToken) {
+        setMfaChallenge((prev) => ({
+          ...prev,
+          ...data
+        }));
+      }
+      setResendCooldown(60);
+      toast.info(`A new verification code has been sent to ${data?.delivery?.destination || 'your email'}.`);
+    } catch (error) {
+      toast.error(parseApiError(error));
+    } finally {
+      resendBusy.current = false;
     }
   }
 
@@ -135,6 +169,15 @@ export default function Login() {
                   {...register('password')}
                 />
                 
+                <div className="flex justify-end -mt-2">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-semibold text-primary hover:text-secondary transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                
                 <div className="pt-2">
                   <Button type="submit" loading={isSubmitting} className="group w-full h-12 text-base font-semibold rounded-lg flex justify-center items-center gap-2">
                     Continue
@@ -142,6 +185,13 @@ export default function Login() {
                   </Button>
                 </div>
               </form>
+
+              <p className="mt-8 font-body-sm text-body-sm text-on-surface-variant">
+                Need a {PORTAL_ROLE} account?{' '}
+                <Link to="/register" className="font-semibold text-primary hover:text-secondary transition-colors">
+                  Register
+                </Link>
+              </p>
             </>
           ) : (
             <>
@@ -151,36 +201,55 @@ export default function Login() {
               </p>
 
               <form className="mt-8 space-y-6 text-left" onSubmit={handleMfaSubmit(onVerifyMfa)}>
-                <Controller
-                  name="code"
-                  control={control}
-                  render={({ field }) => (
-                    <OtpInput
-                      id="code"
-                      error={mfaErrors.code?.message}
-                      {...field}
-                    />
-                  )}
-                />
+                <div>
+                  <Controller
+                    name="code"
+                    control={control}
+                    render={({ field }) => (
+                      <OtpInput
+                        id="code"
+                        error={mfaErrors.code?.message}
+                        {...field}
+                      />
+                    )}
+                  />
+
+                  <div className="mt-4 text-center">
+                    {resendCooldown > 0 ? (
+                      <p className="text-xs text-on-surface-variant font-medium">
+                        Resend code in <span className="font-semibold text-primary">{resendCooldown}s</span>
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onResendMfa}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-secondary transition-colors"
+                      >
+                        <RefreshCw size={13} /> Resend verification code
+                      </button>
+                    )}
+                  </div>
+                </div>
                 
                 <div className="space-y-3 pt-2">
-                  <Button type="submit" loading={isVerifying} className="w-full h-12 text-base font-semibold rounded-full flex justify-center items-center">
+                  <Button type="submit" loading={isVerifying} className="w-full h-12 text-base font-semibold rounded-lg flex justify-center items-center">
                     Verify & Sign In
                   </Button>
-                  <Button type="button" variant="secondary" className="w-full h-12 text-base font-semibold rounded-full border-outline text-primary hover:bg-surface-container-low" onClick={() => setMfaChallenge(null)}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full h-11 text-sm font-semibold rounded-lg border-outline text-primary hover:bg-surface-container-low"
+                    onClick={() => {
+                      setMfaChallenge(null);
+                      setResendCooldown(0);
+                    }}
+                  >
                     Use a different account
                   </Button>
                 </div>
               </form>
             </>
           )}
-
-          <p className="mt-8 font-body-sm text-body-sm text-on-surface-variant">
-            Need a {PORTAL_ROLE} account?{' '}
-            <Link to="/register" className="font-semibold text-primary hover:text-secondary transition-colors">
-              Register
-            </Link>
-          </p>
         </section>
       </div>
     </main>

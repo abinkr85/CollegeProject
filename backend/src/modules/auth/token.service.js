@@ -27,6 +27,7 @@ export const hashToken = (token) => createHash('sha256').update(token).digest('h
 export const generateTokenPair = async (user) => {
   const payload = {
     id: user.id,
+    name: user.name,
     email: user.email,
     role: user.role,
   }
@@ -69,6 +70,7 @@ export const rotateRefreshToken = async (incomingRefreshToken) => {
       user: {
         select: {
           id: true,
+          name: true,
           email: true,
           role: true,
         },

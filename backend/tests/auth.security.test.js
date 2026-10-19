@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
   },
   createMfaChallenge: vi.fn(),
+  resendMfaChallenge: vi.fn(),
   verifyMfaChallenge: vi.fn(),
   generateTokenPair: vi.fn(),
   rotateRefreshToken: vi.fn(),
@@ -59,6 +60,7 @@ vi.mock('../src/utils/logger.js', () => ({
 
 vi.mock('../src/modules/auth/mfa.service.js', () => ({
   createMfaChallenge: mocks.createMfaChallenge,
+  resendMfaChallenge: mocks.resendMfaChallenge,
   verifyMfaChallenge: mocks.verifyMfaChallenge,
 }))
 
@@ -355,5 +357,19 @@ describe('auth security controls', () => {
     })
     expect(mocks.revokeAllUserTokens).toHaveBeenCalledWith('user-1')
     expect(mocks.blacklistAccessToken).toHaveBeenCalledWith('active-access-token', '15m')
+  })
+
+  it('delegates MFA challenge resend to mfa service', async () => {
+    const mockChallenge = {
+      mfaToken: 'new-challenge-uuid',
+      expiresAt: new Date(),
+      delivery: { channel: 'email', destination: 'st*****@example.com' },
+    }
+    mocks.resendMfaChallenge.mockResolvedValue(mockChallenge)
+
+    const result = await authService.resendMfa({ mfaToken: 'old-challenge-uuid' })
+
+    expect(mocks.resendMfaChallenge).toHaveBeenCalledWith({ mfaToken: 'old-challenge-uuid' })
+    expect(result).toEqual(mockChallenge)
   })
 })

@@ -1,5 +1,4 @@
 import { Worker } from 'bullmq'
-import nodemailer from 'nodemailer'
 import { redis } from '../config/redis.js'
 import { config } from '../config/index.js'
 import { logger } from '../utils/logger.js'
@@ -9,16 +8,6 @@ const normalizeEmailPassword = (value = '') =>
   config.EMAIL_HOST === 'smtp.gmail.com' ? value.replace(/\s+/g, '') : value
 
 const emailPassword = normalizeEmailPassword(config.EMAIL_PASS)
-
-const transporter = nodemailer.createTransport({
-  host: config.EMAIL_HOST,
-  port: config.EMAIL_PORT,
-  secure: config.EMAIL_PORT === 465,
-  auth: {
-    user: config.EMAIL_USER,
-    pass: emailPassword,
-  },
-})
 
 const canSendEmail = () =>
   Boolean(config.BREVO_API_KEY) ||

@@ -70,6 +70,10 @@ export const createMfaChallenge = async (user) => {
 
   logger.info({ userId: user.id, mfaChallengeId: challenge.id, usingTwilio: isTwilioConfigured() }, 'Email OTP challenge issued')
 
+  if (config.NODE_ENV !== 'production') {
+    console.log(`\n🔑 [DEV MFA OTP] Verification code for ${user.email}: ${code}\n`)
+  }
+
   return {
     mfaToken: challenge.id,
     expiresAt: challenge.expiresAt,
@@ -78,6 +82,29 @@ export const createMfaChallenge = async (user) => {
       destination: maskEmail(user.email),
     },
   }
+}
+
+export const resendMfaChallenge = async ({ mfaToken }) => {
+  const challenge = await prisma.mfaChallenge.findUnique({
+    where: { id: mfaToken },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+        },
+      },
+    },
+  })
+
+  if (!challenge || challenge.consumedAt) {
+    logger.warn({ mfaToken }, 'MFA resend failed: challenge not found or already consumed')
+    throw new UnauthorizedError('Verification session is invalid or expired. Please sign in again.')
+  }
+
+  return createMfaChallenge(challenge.user)
 }
 
 export const verifyMfaChallenge = async ({ mfaToken, code }) => {

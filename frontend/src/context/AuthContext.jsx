@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useMemo, useRef, useState } from
 import { jwtDecode } from 'jwt-decode';
 import { bindAuthHandlers } from '../api/axiosInstance';
 import { loginUser, logoutUser, refreshUserSession, verifyMfaLogin } from '../api/authApi';
+import { getUserSettings } from '../api/userApi';
 import { PORTAL_ROLE } from '../portalConfig';
 
 export const AuthContext = createContext(null);
@@ -13,6 +14,7 @@ function parseToken(accessToken, fallbackUser = null) {
     const decoded = jwtDecode(accessToken);
     return {
       id: decoded.id,
+      name: decoded.name || fallbackUser?.name || null,
       email: decoded.email,
       role: decoded.role?.toLowerCase(),
       exp: decoded.exp
@@ -21,6 +23,7 @@ function parseToken(accessToken, fallbackUser = null) {
     return fallbackUser
       ? {
           id: fallbackUser.id,
+          name: fallbackUser.name || null,
           email: fallbackUser.email,
           role: fallbackUser.role?.toLowerCase(),
           exp: undefined
@@ -144,6 +147,15 @@ export function AuthProvider({ children }) {
       const parsed = parseToken(savedToken);
 
       if (parsed && parsed.exp && Date.now() < (parsed.exp * 1000 - 10000)) {
+        if (!parsed.name && parsed.id) {
+          getUserSettings()
+            .then((data) => {
+              if (active && data?.profile?.name) {
+                setUser((prev) => (prev ? { ...prev, name: data.profile.name } : prev));
+              }
+            })
+            .catch(() => {});
+        }
         if (active) {
           setIsLoading(false);
         }
@@ -167,9 +179,14 @@ export function AuthProvider({ children }) {
     };
   }, [clearSession, refresh]);
 
+  const updateUser = useCallback((partialUser) => {
+    setUser((prev) => (prev ? { ...prev, ...partialUser } : prev));
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
+      updateUser,
       accessToken,
       login,
       register,
@@ -177,7 +194,7 @@ export function AuthProvider({ children }) {
       logout,
       isLoading
     }),
-    [accessToken, isLoading, login, logout, register, user, verifyMfa]
+    [accessToken, isLoading, login, logout, register, updateUser, user, verifyMfa]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 import { prisma } from '../../config/prisma.js'
 import {
@@ -17,7 +18,9 @@ import {
   revokeAllUserTokens,
   rotateRefreshToken,
 } from './token.service.js'
-import { createMfaChallenge, verifyMfaChallenge } from './mfa.service.js'
+import { createMfaChallenge, resendMfaChallenge, verifyMfaChallenge } from './mfa.service.js'
+import { generateOtp, hashOtp, verifyOtp } from '../../utils/otp.util.js'
+import { sendPasswordResetEmail } from '../../services/email.service.js'
 
 const SALT_ROUNDS = 12
 const DUMMY_PASSWORD_HASH = '$2b$12$lDme/0hM3D7wv9/sRnx0N.UZHGQMbPxSMx/nfqP0/FHTQyp4qs2R6'
@@ -208,6 +211,10 @@ export const verifyMfaLogin = async (dto, { expectedRole } = {}) => {
   }
 }
 
+export const resendMfa = async (dto) => {
+  return resendMfaChallenge(dto)
+}
+
 export const refreshSession = async (incomingToken) => {
   const { accessToken, refreshToken, user } = await rotateRefreshToken(incomingToken)
 
@@ -262,4 +269,117 @@ export const changePassword = async (userId, dto, { accessToken } = {}) => {
   ])
 
   logger.info({ userId }, 'User password changed and sessions revoked')
+}
+
+export const requestPasswordReset = async ({ email }) => {
+  const normalizedEmail = email.trim().toLowerCase()
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true, email: true, name: true },
+  })
+
+  const genericMessage = 'If an account with that email exists, a verification code has been sent.'
+
+  if (!user) {
+    return {
+      message: genericMessage,
+      resetToken: crypto.randomUUID(),
+    }
+  }
+
+  await prisma.passwordReset.deleteMany({
+    where: {
+      userId: user.id,
+      consumedAt: null,
+    },
+  })
+
+  const code = generateOtp()
+  const codeHash = await hashOtp(code)
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+
+  const challenge = await prisma.passwordReset.create({
+    data: {
+      userId: user.id,
+      codeHash,
+      expiresAt,
+    },
+    select: {
+      id: true,
+      expiresAt: true,
+    },
+  })
+
+  if (config.NODE_ENV !== 'production') {
+    console.log(`\n🔑 [DEV PASSWORD RESET OTP] Verification code for ${user.email}: ${code}\n`)
+  }
+
+  sendPasswordResetEmail(user.email, code).catch((err) => {
+    logger.warn({ error: err.message, to: user.email }, 'Failed to send password reset email')
+  })
+
+  return {
+    message: genericMessage,
+    resetToken: challenge.id,
+  }
+}
+
+export const resetPasswordWithOtp = async ({ resetToken, email, code, newPassword }) => {
+  const normalizedEmail = email.trim().toLowerCase()
+  const challenge = await prisma.passwordReset.findUnique({
+    where: { id: resetToken },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
+    },
+  })
+
+  if (
+    !challenge ||
+    challenge.consumedAt ||
+    challenge.expiresAt < new Date() ||
+    challenge.user.email.toLowerCase() !== normalizedEmail
+  ) {
+    throw new UnauthorizedError('Verification code is invalid or expired')
+  }
+
+  if (challenge.attempts >= 5) {
+    throw new UnauthorizedError('Too many failed verification attempts. Please request a new code.')
+  }
+
+  const isValid = await verifyOtp(code.trim(), challenge.codeHash)
+
+  if (!isValid) {
+    await prisma.passwordReset.update({
+      where: { id: challenge.id },
+      data: { attempts: { increment: 1 } },
+    })
+    throw new UnauthorizedError('Invalid verification code')
+  }
+
+  const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS)
+
+  await Promise.all([
+    prisma.user.update({
+      where: { id: challenge.user.id },
+      data: {
+        password: newHash,
+        loginFailedAttempts: 0,
+        lockedUntil: null,
+      },
+    }),
+    prisma.passwordReset.update({
+      where: { id: challenge.id },
+      data: { consumedAt: new Date() },
+    }),
+    revokeAllUserTokens(challenge.user.id),
+  ])
+
+  logger.info({ userId: challenge.user.id }, 'Password reset completed via OTP and sessions revoked')
+
+  return { message: 'Password has been reset successfully. Please sign in with your new password.' }
 }

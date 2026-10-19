@@ -12,7 +12,7 @@ export const cleanupWorker = new Worker(
       return
     }
 
-    const [refreshTokens, mfaChallenges] = await Promise.all([
+    const [refreshTokens, mfaChallenges, passwordResets] = await Promise.all([
       prisma.refreshToken.deleteMany({
         where: {
           expiresAt: {
@@ -21,12 +21,21 @@ export const cleanupWorker = new Worker(
         },
       }),
       deleteExpiredMfaChallenges(),
+      prisma.passwordReset.deleteMany({
+        where: {
+          OR: [
+            { expiresAt: { lt: new Date() } },
+            { consumedAt: { not: null } },
+          ],
+        },
+      }),
     ])
 
     logger.info(
       {
         refreshTokens: refreshTokens.count,
         mfaChallenges: mfaChallenges.count,
+        passwordResets: passwordResets.count,
       },
       'Expired auth artifacts removed'
     )

@@ -49,6 +49,11 @@ export const verifyAdminMfa = async (req, res) => {
   return ApiResponse.ok(res, result, 'Admin login successful')
 }
 
+export const resendMfa = async (req, res) => {
+  const challenge = await authService.resendMfa(req.body)
+  return ApiResponse.ok(res, challenge, 'Verification code resent')
+}
+
 export const refresh = async (req, res) => {
   const token = req.cookies?.refreshToken
 
@@ -77,3 +82,14 @@ export const changePassword = async (req, res) => {
   clearRefreshTokenCookie(res)
   return ApiResponse.ok(res, null, 'Password changed. Please login again.')
 }
+
+export const forgotPassword = async (req, res) => {
+  const result = await authService.requestPasswordReset(req.body)
+  return ApiResponse.ok(res, result, result.message)
+}
+
+export const resetPassword = async (req, res) => {
+  const result = await authService.resetPasswordWithOtp(req.body)
+  return ApiResponse.ok(res, result, result.message)
+}
+

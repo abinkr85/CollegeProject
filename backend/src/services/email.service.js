@@ -149,3 +149,20 @@ export const sendGenericEmail = async ({ to, subject, html, text }) => {
 
 export const sendSendGridOtp = sendOtpEmail
 
+export const sendPasswordResetEmail = async (to, code) => {
+  const subject = 'Smart Campus - Password Reset Verification Code'
+  const text = `You requested to reset your Smart Campus password. Your verification code is: ${code}. It will expire in 10 minutes. If you did not request this, please ignore this email.`
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+      <h2 style="color: #0f172a; margin-top: 0;">Reset Your Password</h2>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">You requested to reset your Smart Campus account password. Use the verification code below to complete the reset:</p>
+      <div style="background: #f1f5f9; padding: 16px; border-radius: 8px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #1e40af;">${code}</span>
+      </div>
+      <p style="color: #64748b; font-size: 13px; margin-bottom: 0;">This code expires in <strong>10 minutes</strong>. If you did not request a password reset, you can safely ignore this email.</p>
+    </div>
+  `
+
+  await sendGenericEmail({ to, subject, html, text })
+}
+

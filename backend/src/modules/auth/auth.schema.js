@@ -38,6 +38,10 @@ export const verifyMfaSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, 'Verification code must be 6 digits'),
 })
 
+export const resendMfaSchema = z.object({
+  mfaToken: z.string().uuid(),
+})
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: changedPassword,
@@ -48,3 +52,21 @@ export const changePasswordSchema = z.object({
   message: "New password and confirmation password do not match",
   path: ["confirmPassword"],
 })
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().toLowerCase(),
+})
+
+export const resetPasswordSchema = z.object({
+  resetToken: z.string().uuid('Invalid reset token'),
+  email: z.string().trim().email().toLowerCase(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Verification code must be 6 digits'),
+  newPassword: strongPassword,
+  confirmPassword: z.string().min(1),
+}).refine((data) => {
+  return data.newPassword === data.confirmPassword
+}, {
+  message: "New password and confirmation password do not match",
+  path: ["confirmPassword"],
+})
+

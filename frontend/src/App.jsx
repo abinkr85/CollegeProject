@@ -7,11 +7,13 @@ import AdminLayout from './layouts/AdminLayout.jsx';
 
 import Login from './pages/Login.jsx';
 const Register = lazy(() => import('./pages/Register.jsx'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword.jsx'));
 
 // Student Pages
 const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard.jsx'));
 const SubmitComplaint = lazy(() => import('./pages/student/SubmitComplaint.jsx'));
 const ComplaintHistory = lazy(() => import('./pages/student/ComplaintHistory.jsx'));
+const StudentSettings = lazy(() => import('./pages/student/StudentSettings.jsx'));
 
 // Admin Pages
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'));
@@ -28,6 +30,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           
           {isAdminPortal ? (
             <Route path="/admin" element={<ProtectedRoute role="admin"><AdminLayout /></ProtectedRoute>}>
@@ -42,6 +45,7 @@ export default function App() {
               <Route path="/dashboard" element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>} />
               <Route path="/submit" element={<ProtectedRoute role="student"><SubmitComplaint /></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute role="student"><ComplaintHistory /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute role="student"><StudentSettings /></ProtectedRoute>} />
             </>
           )}
 

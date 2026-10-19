@@ -45,6 +45,13 @@ export async function verifyMfaLogin(payload, role) {
   return normalizeAuthPayload(unwrapEnvelope(data));
 }
 
+export async function resendMfaLogin(payload) {
+  const { data } = await axiosInstance.post('/api/auth/login/resend-mfa', payload, {
+    skipAuthRefresh: true
+  });
+  return unwrapEnvelope(data);
+}
+
 export async function logoutUser() {
   const { data } = await axiosInstance.post('/api/auth/logout', null, {
     skipAuthRefresh: true
@@ -63,3 +70,22 @@ export async function refreshUserSession() {
   });
   return normalizeAuthPayload(unwrapEnvelope(data));
 }
+
+export async function requestPasswordReset(email) {
+  const { data } = await axiosInstance.post(
+    '/api/auth/forgot-password',
+    { email },
+    { skipAuthRefresh: true }
+  );
+  return unwrapEnvelope(data);
+}
+
+export async function resetPasswordWithOtp(payload) {
+  const { data } = await axiosInstance.post(
+    '/api/auth/reset-password',
+    payload,
+    { skipAuthRefresh: true }
+  );
+  return unwrapEnvelope(data);
+}
+

@@ -7,7 +7,7 @@ import {
 } from '../../api/notificationApi';
 import { useAuth } from '../../hooks/useAuth';
 import { formatRelativeTime } from '../../utils/formatDate';
-import { ShieldCheck, Bell, BellOff, LogOut } from 'lucide-react';
+import { ShieldCheck, Bell, BellOff, LogOut, Settings as SettingsIcon } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -124,6 +124,16 @@ export default function Navbar() {
           >
             History
           </NavLink>
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `h-full flex items-center font-bold pb-1 pt-1 duration-200 ease-in-out hover:text-secondary transition-colors border-b-2 ${
+                isActive ? 'text-primary border-secondary' : 'text-on-surface-variant border-transparent'
+              }`
+            }
+          >
+            Settings
+          </NavLink>
         </div>
 
         {/* Trailing Icons */}
@@ -212,17 +222,22 @@ export default function Navbar() {
             )}
           </div>
 
-          <div className="flex items-center gap-4 pl-2 ml-2 border-l border-outline-variant">
-            <span className="text-body-md font-medium text-on-surface-variant hidden sm:block">
-              {user?.email}
-            </span>
+          <div className="flex items-center gap-3 pl-2 ml-2 border-l border-outline-variant">
+            <NavLink
+              to="/settings"
+              className="text-body-md font-medium text-on-surface-variant hover:text-primary transition-colors hidden sm:flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-surface-container-low"
+              title="Account Settings"
+            >
+              <span>{user?.name || user?.email}</span>
+              <SettingsIcon size={16} className="text-on-surface-variant hover:text-primary" />
+            </NavLink>
             <button
               onClick={() => logout()}
               className="hover:text-error transition-colors duration-200 ease-in-out flex items-center p-1.5 rounded-full hover:bg-surface-container-low"
               title="Logout"
               aria-label="Log out"
             >
-              <LogOut size={24} />
+              <LogOut size={22} />
             </button>
           </div>
         </div>
