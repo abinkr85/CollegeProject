@@ -75,13 +75,52 @@ const sendViaBrevo = async (to, code) => {
   logger.info({ to }, 'Brevo OTP email sent successfully over HTTPS')
 }
 
+const sendViaResend = async ({ to, subject, html, text }) => {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: config.RESEND_FROM || 'Smart Campus <onboarding@resend.dev>',
+      to: [to],
+      subject,
+      text: text || html?.replace(/<[^>]*>/g, '') || '',
+      html,
+    }),
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    throw new Error(`Resend HTTP ${res.status}: ${errBody}`)
+  }
+
+  logger.info({ to, subject }, 'Resend email sent successfully over HTTPS')
+}
+
 export const sendOtpEmail = async (to, code) => {
+  const msg = createOtpMessage(to, code)
+
   if (config.BREVO_API_KEY) {
     try {
       await sendViaBrevo(to, code)
       return
     } catch (error) {
-      logger.error({ error: error.message, to }, 'Failed to send OTP email via Brevo')
+      if (error.message.includes('unrecognised IP address') || error.message.includes('authorised_ips')) {
+        logger.error({ error: error.message, to }, 'Brevo blocked request due to IP restrictions. Please disable Authorized IPs at https://app.brevo.com/security/authorised_ips')
+      } else {
+        logger.error({ error: error.message, to }, 'Failed to send OTP email via Brevo')
+      }
+    }
+  }
+
+  if (config.RESEND_API_KEY) {
+    try {
+      await sendViaResend({ to, subject: msg.subject, html: msg.html, text: msg.text })
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to }, 'Failed to send OTP email via Resend')
     }
   }
 
@@ -90,7 +129,7 @@ export const sendOtpEmail = async (to, code) => {
       await sendViaSmtp(to, code)
       return
     } catch (error) {
-      logger.error({ error: error.message, to }, 'Failed to send OTP email via SMTP')
+      logger.error({ error: error.message, to }, 'Failed to send OTP email via SMTP. Note: Render and other cloud hosts block outbound SMTP ports 25, 465, and 587.')
     }
   }
 
@@ -124,7 +163,20 @@ export const sendGenericEmail = async ({ to, subject, html, text }) => {
       logger.info({ to, subject }, 'Email sent successfully via Brevo over HTTPS')
       return
     } catch (error) {
-      logger.error({ error: error.message, to, subject }, 'Failed to send generic email via Brevo')
+      if (error.message.includes('unrecognised IP address') || error.message.includes('authorised_ips')) {
+        logger.error({ error: error.message, to, subject }, 'Brevo blocked request due to IP restrictions. Please disable Authorized IPs at https://app.brevo.com/security/authorised_ips')
+      } else {
+        logger.error({ error: error.message, to, subject }, 'Failed to send generic email via Brevo')
+      }
+    }
+  }
+
+  if (config.RESEND_API_KEY) {
+    try {
+      await sendViaResend({ to, subject, html, text })
+      return
+    } catch (error) {
+      logger.error({ error: error.message, to, subject }, 'Failed to send generic email via Resend')
     }
   }
 
@@ -140,7 +192,7 @@ export const sendGenericEmail = async ({ to, subject, html, text }) => {
       logger.info({ to, subject }, 'Email sent via SMTP')
       return
     } catch (error) {
-      logger.error({ error: error.message, to, subject }, 'Failed to send generic email via SMTP')
+      logger.error({ error: error.message, to, subject }, 'Failed to send generic email via SMTP. Note: Render and other cloud hosts block outbound SMTP ports 25, 465, and 587.')
     }
   }
 
