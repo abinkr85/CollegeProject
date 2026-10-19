@@ -215,3 +215,119 @@ export const upsertSystemPreference = (key, value) =>
       value,
     },
   })
+
+export const findUsers = async (filters, { page, limit }) => {
+  const where = {}
+
+  if (filters.role) {
+    where.role = filters.role
+  }
+
+  if (filters.department) {
+    where.department = { contains: filters.department, mode: 'insensitive' }
+  }
+
+  if (filters.search) {
+    const s = filters.search.trim()
+    where.OR = [
+      { name: { contains: s, mode: 'insensitive' } },
+      { email: { contains: s, mode: 'insensitive' } },
+      { department: { contains: s, mode: 'insensitive' } },
+    ]
+  }
+
+  const now = new Date()
+  if (filters.status === 'locked') {
+    where.lockedUntil = { gt: now }
+  } else if (filters.status === 'active') {
+    where.AND = [
+      {
+        OR: [
+          { lockedUntil: null },
+          { lockedUntil: { lte: now } },
+        ],
+      },
+    ]
+  }
+
+  const [users, total, totalStudents, totalLocked] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      ...getPrismaSkipTake({ page, limit }),
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        department: true,
+        createdAt: true,
+        loginFailedAttempts: true,
+        lockedUntil: true,
+        _count: {
+          select: {
+            complaints: true,
+          },
+        },
+        complaints: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    }),
+    prisma.user.count({ where }),
+    prisma.user.count({ where: { role: 'STUDENT' } }),
+    prisma.user.count({ where: { lockedUntil: { gt: now } } }),
+  ])
+
+  const formattedUsers = users.map((u) => {
+    const isLocked = u.lockedUntil ? new Date(u.lockedUntil) > now : false
+    const complaintsSummary = {
+      total: u._count.complaints,
+      open: u.complaints.filter((c) => c.status === 'OPEN').length,
+      inProgress: u.complaints.filter((c) => c.status === 'IN_PROGRESS').length,
+      resolved: u.complaints.filter((c) => c.status === 'RESOLVED').length,
+    }
+
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      department: u.department,
+      createdAt: u.createdAt,
+      loginFailedAttempts: u.loginFailedAttempts,
+      lockedUntil: u.lockedUntil,
+      isLocked,
+      complaintsCount: u._count.complaints,
+      complaintsSummary,
+    }
+  })
+
+  return {
+    users: formattedUsers,
+    total,
+    metrics: {
+      totalStudents,
+      totalLocked,
+      activeStudents: Math.max(0, totalStudents - totalLocked),
+    },
+  }
+}
+
+export const unlockUserById = (id) =>
+  prisma.user.update({
+    where: { id },
+    data: {
+      lockedUntil: null,
+      loginFailedAttempts: 0,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      lockedUntil: true,
+      loginFailedAttempts: true,
+    },
+  })

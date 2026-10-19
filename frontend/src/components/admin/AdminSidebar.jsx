@@ -15,7 +15,7 @@
 //
 // State ownership: AdminLayout owns isMobileMenuOpen — NOT this component.
 
-import { ClipboardList, LayoutDashboard, ShieldCheck, X, BarChart3, Settings } from 'lucide-react';
+import { ClipboardList, LayoutDashboard, ShieldCheck, X, BarChart3, Settings, Users } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 /** Navigation link definitions. */
@@ -30,6 +30,12 @@ const NAV_LINKS = [
     to: '/admin/complaints',
     label: 'Complaints',
     icon: ClipboardList,
+    end: false
+  },
+  {
+    to: '/admin/users',
+    label: 'Users',
+    icon: Users,
     end: false
   },
   {

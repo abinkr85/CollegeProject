@@ -161,3 +161,17 @@ export async function markAllAdminNotificationsRead() {
   const { data } = await axiosInstance.patch('/api/admin/notifications/read-all');
   return unwrapEnvelope(data);
 }
+
+export async function getAdminUsers(params = {}) {
+  const { data } = await axiosInstance.get('/api/admin/users', {
+    params: Object.fromEntries(
+      Object.entries(params).filter(([, val]) => val !== '' && val !== null && val !== undefined)
+    ),
+  });
+  return data;
+}
+
+export async function unlockUserAccount(userId) {
+  const { data } = await axiosInstance.patch(`/api/admin/users/${userId}/unlock`);
+  return unwrapEnvelope(data);
+}

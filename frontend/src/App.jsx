@@ -18,6 +18,7 @@ const StudentSettings = lazy(() => import('./pages/student/StudentSettings.jsx')
 // Admin Pages
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'));
 const ComplaintManagement = lazy(() => import('./pages/admin/ComplaintManagement.jsx'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement.jsx'));
 const Analytics = lazy(() => import('./pages/admin/Analytics.jsx'));
 const AdminSettings = lazy(() => import('./pages/admin/Settings.jsx'));
 
@@ -37,6 +38,7 @@ export default function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="complaints" element={<ComplaintManagement />} />
+              <Route path="users" element={<UserManagement />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>

@@ -2,8 +2,8 @@
 // Top sticky navbar for the admin portal.
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Inbox, LogOut, Menu, ShieldCheck } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, Inbox, LogOut, Menu, ShieldCheck, Settings } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getAdminNotifications, markAdminNotificationRead, markAllAdminNotificationsRead } from '../../api/adminApi';
 import { useSystemTimezone } from '../../context/TimezoneContext';
@@ -207,17 +207,28 @@ export default function AdminNavbar({ onMenuOpen }) {
 
         <span className="hidden sm:block h-6 w-px bg-gray-200 mx-1" aria-hidden="true" />
 
-        <div className="hidden sm:flex items-center gap-2.5">
+        <NavLink
+          to="/admin/settings"
+          className={({ isActive }) =>
+            `hidden sm:flex items-center gap-2.5 py-1 px-2.5 rounded-xl border transition-all ${
+              isActive
+                ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-xs'
+                : 'border-transparent text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+            }`
+          }
+          title="Admin Settings"
+        >
           <span
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0a1422] text-white text-xs font-bold select-none"
             aria-hidden="true"
           >
             {initials}
           </span>
-          <span className="hidden md:block max-w-[140px] truncate text-sm font-medium text-gray-700">
+          <span className="hidden md:block max-w-[140px] truncate text-sm font-medium">
             {displayName}
           </span>
-        </div>
+          <Settings size={14} className="text-gray-400 hidden md:block" />
+        </NavLink>
 
         <span className="hidden sm:block h-6 w-px bg-gray-200 mx-1" aria-hidden="true" />
 

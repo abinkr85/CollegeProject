@@ -79,3 +79,26 @@ export const markAllNotificationsRead = async (req, res) => {
   const result = await notificationService.markAllNotificationsRead(req.user.id)
   return ApiResponse.ok(res, result, 'Notifications marked as read')
 }
+
+export const listUsers = async (req, res) => {
+  const { page, limit, ...filters } = req.query
+  const { users, total, metrics } = await adminService.getUsers(filters, { page, limit })
+
+  return res.status(200).json({
+    success: true,
+    message: 'Users loaded',
+    data: users,
+    pagination: {
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+      total,
+      totalPages: Math.ceil(total / (Number(limit) || 10)),
+    },
+    metrics,
+  })
+}
+
+export const unlockUser = async (req, res) => {
+  const result = await adminService.unlockUser(req.params.id)
+  return ApiResponse.ok(res, result, 'User account unlocked successfully')
+}

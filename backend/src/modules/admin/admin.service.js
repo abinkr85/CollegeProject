@@ -387,3 +387,18 @@ export const updateSystemSettings = async (userId, dto) => {
     dataRetentionPolicy: dto.dataRetentionPolicy,
   }
 }
+
+export const getUsers = async (filters, pagination) => {
+  return repo.findUsers(filters, pagination)
+}
+
+export const unlockUser = async (userId) => {
+  const user = await repo.findUserById(userId)
+  if (!user) {
+    throw new NotFoundError('User not found')
+  }
+
+  const updated = await repo.unlockUserById(userId)
+  logger.info({ userId }, 'Admin unlocked user account')
+  return updated
+}

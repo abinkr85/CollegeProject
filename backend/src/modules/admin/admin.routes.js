@@ -18,11 +18,16 @@ import {
   notificationPrefsSchema,
   systemPrefsSchema,
   notificationIdParamSchema,
+  adminUserIdParamSchema,
+  adminUsersQuerySchema,
 } from './admin.schema.js'
 
 const router = Router()
 
 router.use(authenticate, authorize('ADMIN'))
+
+router.get('/users', validate({ query: adminUsersQuerySchema }), asyncHandler(controller.listUsers))
+router.patch('/users/:id/unlock', validate({ params: adminUserIdParamSchema }), asyncHandler(controller.unlockUser))
 
 router.get('/complaints', validate({ query: adminComplaintQuerySchema }), asyncHandler(controller.getAll))
 router.get('/complaints/export', validate({ query: adminExportQuerySchema }), asyncHandler(controller.exportCSV))

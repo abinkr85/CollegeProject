@@ -75,3 +75,14 @@ export const systemPrefsSchema = z.object({
 export const notificationIdParamSchema = z.object({
   id: z.string().uuid(),
 })
+
+export const adminUserIdParamSchema = z.object({
+  id: z.string().uuid(),
+})
+
+export const adminUsersQuerySchema = paginationSchema.extend({
+  search: z.string().trim().min(1).max(200).optional(),
+  role: enumFromString(['STUDENT', 'ADMIN']).optional(),
+  department: z.string().trim().min(1).max(100).optional(),
+  status: z.enum(['all', 'active', 'locked']).optional().default('all'),
+})
