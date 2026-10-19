@@ -124,16 +124,6 @@ export default function Navbar() {
           >
             History
           </NavLink>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              `h-full flex items-center font-bold pb-1 pt-1 duration-200 ease-in-out hover:text-secondary transition-colors border-b-2 ${
-                isActive ? 'text-primary border-secondary' : 'text-on-surface-variant border-transparent'
-              }`
-            }
-          >
-            Settings
-          </NavLink>
         </div>
 
         {/* Trailing Icons */}
@@ -225,7 +215,13 @@ export default function Navbar() {
           <div className="flex items-center gap-3 pl-2 ml-2 border-l border-outline-variant">
             <NavLink
               to="/settings"
-              className="text-body-md font-medium text-on-surface-variant hover:text-primary transition-colors hidden sm:flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-surface-container-low"
+              className={({ isActive }) =>
+                `text-body-md font-medium transition-all hidden sm:flex items-center gap-2 py-1.5 px-3 rounded-lg border ${
+                  isActive
+                    ? 'bg-secondary/10 text-primary border-secondary/30 font-semibold shadow-xs'
+                    : 'text-on-surface-variant border-transparent hover:bg-surface-container-low hover:text-primary'
+                }`
+              }
               title="Account Settings"
             >
               <span>{user?.name || user?.email}</span>
