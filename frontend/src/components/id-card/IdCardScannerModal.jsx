@@ -348,7 +348,7 @@ export default function IdCardScannerModal({
             if (pct >= 100) {
               autoCaptureCounterRef.current = 0;
               setAutoCaptureProgress(0);
-              takeSnapshot();
+              takeSnapshot(true);
             }
           } else {
             if (autoCaptureCounterRef.current > 0) {
@@ -369,7 +369,7 @@ export default function IdCardScannerModal({
   /**
    * WhatsApp Document Scan: Crop out background room & save ONLY the card rectangle!
    */
-  const takeSnapshot = async () => {
+  const takeSnapshot = async (isAuto = false) => {
     if (isCapturingRef.current) return;
     if (stepRef.current === 'review') return;
     if (stepRef.current === 'front' && frontImageRef.current) return;
@@ -438,10 +438,11 @@ export default function IdCardScannerModal({
       const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
       const activeStep = stepRef.current;
 
-      setStepNotice('🔍 Straightening & deskewing card edges...');
+      setStepNotice('🔍 Verifying ID card boundary...');
 
       // Call Python OpenCV Service via Node backend
       let finalDataUrl = rawDataUrl;
+      let cardDetected = false;
       try {
         const cropRes = await scanAndCropIdCardApi({
           image: rawDataUrl,
@@ -449,12 +450,25 @@ export default function IdCardScannerModal({
         });
         if (cropRes?.image) {
           finalDataUrl = cropRes.image;
-          if (cropRes.detected) {
+          cardDetected = Boolean(cropRes.detected);
+          if (cardDetected) {
             setStepNotice('✓ 4-Corner Card Detected & Deskewed!');
           }
         }
       } catch (err) {
         console.warn('OpenCV deskew fallback:', err);
+      }
+
+      // CRITICAL: Auto-capture MUST strictly trigger only when a valid ID card is detected!
+      // If no valid card contour was found (e.g. bedsheet, blanket, table texture, or blank background),
+      // reject auto-capture, reset the auto-capture progress, and keep the scanner live.
+      if (isAuto && !cardDetected) {
+        setStepNotice('⚠️ No ID card detected. Keep card steady inside frame.');
+        setTimeout(() => setStepNotice(''), 2200);
+        isCapturingRef.current = false;
+        autoCaptureCounterRef.current = 0;
+        setAutoCaptureProgress(0);
+        return;
       }
 
       await processCapturedImage(finalDataUrl, activeStep);
@@ -472,14 +486,15 @@ export default function IdCardScannerModal({
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            takeSnapshot();
+            setCountdown(null);
+            takeSnapshot(false);
             return null;
           }
           return prev - 1;
         });
       }, 1000);
     } else {
-      takeSnapshot();
+      takeSnapshot(false);
     }
   };
 
