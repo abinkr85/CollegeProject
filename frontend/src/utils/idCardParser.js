@@ -43,16 +43,17 @@ export function parseIdCardText(ocrText = '') {
 
   // 2. Student ID / Roll Number Pattern
   // Example on card: "23BC023" (23 = Year, BC = BCA, 023 = Roll No)
-  // College roll numbers: 23BC023, 24MCA001, etc.
-  const idMatch =
-    cleanText.match(/\b(2[0-9][A-Z]{2,4}[0-9]{2,4})\b/i) ||
-    cleanText.match(/\b([0-9]{2}[A-Z]{2,4}[0-9]{2,4})\b/i) ||
-    cleanText.match(/(?:Roll\s*(?:No|Number)|Enroll?\s*(?:No|Number)|Student\s*ID|Reg\s*(?:No|Number))[:\s.-]*([A-Z0-9\/-]+)/i) ||
-    // If digits only, avoid 10-digit Indian phone numbers starting with 6-9
-    cleanText.match(/\b(?![6-9]\d{9}\b)([0-9]{5,12})\b/);
+  // College roll numbers: 23BC023, 23BC 023, 24MCA001, etc.
+  const rawIdMatch =
+    cleanText.match(/\b(2[0-9]\s*[-/]?\s*[A-Z]{2,4}\s*[-/]?\s*[0-9O]{2,4})\b/i) ||
+    cleanText.match(/\b([0-9]{2}\s*[-/]?\s*[A-Z]{2,4}\s*[-/]?\s*[0-9O]{2,4})\b/i) ||
+    cleanText.match(/(?:Roll\s*(?:No\.?|Number)|Enroll?\s*(?:No\.?|Number)|Student\s*ID|Reg\s*(?:No\.?|Number)|Id\s*No\.?)[:\s.-]*([A-Z0-9\/-]+)/i);
 
-  if (idMatch) {
-    result.studentIdNumber = idMatch[1].toUpperCase();
+  if (rawIdMatch) {
+    let extracted = rawIdMatch[1].replace(/[\s\/-]+/g, '').toUpperCase();
+    // Correct OCR mistaking 0 for O in trailing digits, e.g. 23BCO23 -> 23BC023
+    extracted = extracted.replace(/^([0-9]{2}[A-Z]{2,4})O([0-9]+)$/, '$10$2');
+    result.studentIdNumber = extracted;
   }
 
   // 3. Name Pattern

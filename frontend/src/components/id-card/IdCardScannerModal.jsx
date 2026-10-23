@@ -18,13 +18,15 @@ import {
   Upload,
   User,
   X,
+  Zap,
+  ZapOff,
   ZoomIn
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Button from '../ui/Button';
 import { parseIdCardText } from '../../utils/idCardParser';
 
-// Dynamic import or fallback for tesseract
+// Dynamic import or fallback for client-side OCR
 let tesseractWorkerPromise = null;
 async function runOcrOnImage(imageSrc) {
   try {
@@ -104,8 +106,8 @@ export default function IdCardScannerModal({
   currentYear = ''
 }) {
   const [step, setStep] = useState('front'); // 'front' | 'back' | 'review'
-  // Default to portrait (vertical) since real Harsha ID cards are vertical!
   const [orientation, setOrientation] = useState('vertical'); // 'vertical' | 'horizontal'
+  const [autoCapture, setAutoCapture] = useState(true); // WhatsApp-style auto capture
 
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
@@ -134,15 +136,21 @@ export default function IdCardScannerModal({
   const [countdown, setCountdown] = useState(null);
   const [flashActive, setFlashActive] = useState(false);
 
-  // Live quality metrics
-  const [clarityScore, setClarityScore] = useState(65);
-  const [isSteady, setIsSteady] = useState(true);
+  // Live quality & auto-capture metrics
+  const [clarityScore, setClarityScore] = useState(70);
+  const [isSteady, setIsSteady] = useState(false);
+  const [autoCaptureProgress, setAutoCaptureProgress] = useState(0);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const analysisCanvasRef = useRef(null);
   const animationFrameRef = useRef(null);
   const fileInputRef = useRef(null);
+  const containerRef = useRef(null);
+  const reticleRef = useRef(null);
+
+  const autoCaptureCounterRef = useRef(0);
+  const isCapturingRef = useRef(false);
 
   // Reset state on open
   useEffect(() => {
@@ -154,6 +162,9 @@ export default function IdCardScannerModal({
       setDepartmentInput(currentDepartment);
       setYearInput(currentYear);
       setExtractedData(null);
+      setAutoCaptureProgress(0);
+      autoCaptureCounterRef.current = 0;
+      isCapturingRef.current = false;
       startCamera();
     } else {
       stopCamera();
@@ -219,9 +230,9 @@ export default function IdCardScannerModal({
       setIsCameraStarting(false);
       setHasCamera(false);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraError('Camera access denied. Please click "Upload Photo" below to upload your card directly.');
+        setCameraError('Camera permission was denied. You can upload your ID card photos directly below.');
       } else {
-        setCameraError('Camera error: ' + (err.message || 'Please use image upload fallback.'));
+        setCameraError('Camera unavailable: ' + (err.message || 'Please use file upload.'));
       }
     }
   };
@@ -249,7 +260,7 @@ export default function IdCardScannerModal({
     startCamera(nextDeviceId);
   };
 
-  // Real-time clarity check
+  // Real-time clarity check & auto-capture loop
   const startClarityLoop = () => {
     const loop = () => {
       if (!videoRef.current || videoRef.current.readyState < 2) {
@@ -270,10 +281,30 @@ export default function IdCardScannerModal({
       ctx.drawImage(video, 0, 0, w, h);
       const { sharpness } = calculateSharpness(ctx, w, h);
 
-      // Map score smoothly (30 to 70 range)
-      const score = Math.min(100, Math.max(25, Math.round((sharpness / 50) * 100)));
+      // Score 0 - 100
+      const score = Math.min(100, Math.max(25, Math.round((sharpness / 45) * 100)));
       setClarityScore(score);
-      setIsSteady(score >= 45);
+
+      const steady = score >= 52;
+      setIsSteady(steady);
+
+      // WhatsApp-style Auto Capture Logic
+      if (autoCapture && steady && !isCapturingRef.current) {
+        autoCaptureCounterRef.current += 1;
+        // ~24 frames = ~1.2s of steady card alignment
+        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 24) * 100));
+        setAutoCaptureProgress(pct);
+
+        if (pct >= 100) {
+          isCapturingRef.current = true;
+          autoCaptureCounterRef.current = 0;
+          setAutoCaptureProgress(0);
+          takeSnapshot();
+        }
+      } else {
+        autoCaptureCounterRef.current = 0;
+        setAutoCaptureProgress(0);
+      }
 
       animationFrameRef.current = requestAnimationFrame(loop);
     };
@@ -281,22 +312,79 @@ export default function IdCardScannerModal({
     animationFrameRef.current = requestAnimationFrame(loop);
   };
 
-  // Take snapshot from video
+  /**
+   * WhatsApp Document Scan: Crop out background room & save ONLY the card rectangle!
+   */
   const takeSnapshot = () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !containerRef.current || !reticleRef.current) return;
     const video = videoRef.current;
 
-    // Visual camera shutter flash
+    // Visual camera shutter flash & haptic feedback
     setFlashActive(true);
+    if (navigator.vibrate) {
+      try { navigator.vibrate([40, 30, 40]); } catch (_) {}
+    }
     setTimeout(() => setFlashActive(false), 180);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1920;
-    canvas.height = video.videoHeight || 1080;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const reticleRect = reticleRef.current.getBoundingClientRect();
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.94);
+    const vWidth = video.videoWidth || 1920;
+    const vHeight = video.videoHeight || 1080;
+
+    // Calculate object-cover scale and offsets
+    const videoAspect = vWidth / vHeight;
+    const containerAspect = containerRect.width / containerRect.height;
+
+    let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0;
+
+    if (videoAspect > containerAspect) {
+      renderedHeight = containerRect.height;
+      renderedWidth = containerRect.height * videoAspect;
+      offsetX = (renderedWidth - containerRect.width) / 2;
+    } else {
+      renderedWidth = containerRect.width;
+      renderedHeight = containerRect.width / videoAspect;
+      offsetY = (renderedHeight - containerRect.height) / 2;
+    }
+
+    const scaleX = vWidth / renderedWidth;
+    const scaleY = vHeight / renderedHeight;
+
+    // Calculate crop rectangle strictly inside the video source
+    const cropX = Math.max(0, Math.round(((reticleRect.left - containerRect.left) + offsetX) * scaleX));
+    const cropY = Math.max(0, Math.round(((reticleRect.top - containerRect.top) + offsetY) * scaleY));
+    const cropW = Math.min(vWidth - cropX, Math.round(reticleRect.width * scaleX));
+    const cropH = Math.min(vHeight - cropY, Math.round(reticleRect.height * scaleY));
+
+    // Target canvas: Card dimensions only (Background completely removed!)
+    const canvas = document.createElement('canvas');
+    // Normalize target resolution: e.g. 800 x 1264 for crisp OCR and clean UI
+    const targetW = orientation === 'vertical' ? 760 : 1200;
+    const targetH = orientation === 'vertical' ? 1200 : 760;
+
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+
+    // Draw only the cropped reticle area (background discarded!)
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+    // Apply smart contrast/brightness enhancement
+    try {
+      const imgData = ctx.getImageData(0, 0, targetW, targetH);
+      const d = imgData.data;
+      const contrast = 1.08; // subtle boost
+      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = factor * (d[i] - 128) + 128;
+        d[i + 1] = factor * (d[i + 1] - 128) + 128;
+        d[i + 2] = factor * (d[i + 2] - 128) + 128;
+      }
+      ctx.putImageData(imgData, 0, 0);
+    } catch (_) {}
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     processCapturedImage(dataUrl, step);
   };
 
@@ -324,15 +412,17 @@ export default function IdCardScannerModal({
     if (currentStep === 'front') {
       setFrontImage(dataUrl);
       setStep('back');
-      toast.success('Front side captured! Now scan the back side.');
+      isCapturingRef.current = false;
+      toast.success('Front side captured! Now align and scan the back side.');
 
-      // Run background OCR extraction on Front side
+      // Run background OCR extraction on Front side (cropped card)
       setIsProcessingOcr(true);
-      setOcrStatusText('Reading card details (Roll No, Name, Course)...');
+      setOcrStatusText('Scanning Roll No & Course details...');
 
       try {
         const text = await runOcrOnImage(dataUrl);
         const parsed = parseIdCardText(text);
+
         if (parsed.studentIdNumber) {
           setStudentIdInput(parsed.studentIdNumber);
         }
@@ -349,12 +439,11 @@ export default function IdCardScannerModal({
           setBloodGroupInput(parsed.bloodGroup);
         }
         if (parsed.validUpto) {
-          // If valid upto 2026 and current year is 2026, or estimate
           setYearInput(parsed.validUpto.includes('2026') ? '3rd Year' : 'Current Year');
         }
         setExtractedData(parsed);
       } catch (err) {
-        console.warn('OCR processing skipped:', err);
+        console.warn('OCR processing notice:', err);
       } finally {
         setIsProcessingOcr(false);
       }
@@ -362,7 +451,8 @@ export default function IdCardScannerModal({
       setBackImage(dataUrl);
       setStep('review');
       stopCamera();
-      toast.success('Both sides captured! Please review details.');
+      isCapturingRef.current = false;
+      toast.success('Both sides scanned! Please review details.');
 
       // Run OCR on Back side to capture emergency contact / parent info
       try {
@@ -372,7 +462,7 @@ export default function IdCardScannerModal({
           setEmergencyPhoneInput(backParsed.emergencyContact);
         }
       } catch (err) {
-        console.warn('Back OCR skipped:', err);
+        console.warn('Back OCR notice:', err);
       }
     }
   };
@@ -403,7 +493,7 @@ export default function IdCardScannerModal({
     }
 
     if (!studentIdInput || studentIdInput.trim().length < 2) {
-      toast.error('Please provide or confirm your Student ID / Roll Number (e.g. 23BC023).');
+      toast.error('Please confirm your Student ID / Roll Number (e.g. 23BC023).');
       return;
     }
 
@@ -427,150 +517,98 @@ export default function IdCardScannerModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col my-auto max-h-[94vh]">
-        {/* Header Bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20">
-              <ShieldCheck className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[92vh] bg-slate-900 border-0 sm:border sm:border-slate-800 sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white">
+        
+        {/* COMPACT CLEAN HEADER (Optimized for Mobile) */}
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-800 bg-slate-950/80 shrink-0">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 bg-blue-600/90 text-white rounded-xl shadow-sm">
+              <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                  Student ID Live Scanner
-                </h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  Harsha Institutions Pattern Support
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                High-definition live scan for vertical & horizontal student identity cards
+              <h2 className="text-sm sm:text-base font-bold text-white leading-tight">
+                Student ID Scanner
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                {step === 'front' ? 'Step 1 of 2: Front Side' : step === 'back' ? 'Step 2 of 2: Back Side' : 'Step 3: Review Details'}
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Step Progress Bar */}
-        <div className="grid grid-cols-3 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold select-none">
+        {/* RESPONSIVE SEGMENTED STEP BAR (No Truncation) */}
+        <div className="grid grid-cols-3 border-b border-slate-800 text-[11px] sm:text-xs font-semibold select-none bg-slate-950/40 shrink-0">
           <div
-            className={`py-3 px-3 text-center border-b-2 flex items-center justify-center gap-2 transition ${
+            className={`py-2 px-1 text-center border-b-2 flex items-center justify-center gap-1.5 transition ${
               step === 'front'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/20'
+                ? 'border-blue-500 text-blue-400 bg-blue-950/30'
                 : frontImage
-                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                : 'border-transparent text-slate-400'
+                ? 'border-emerald-500 text-emerald-400'
+                : 'border-transparent text-slate-500'
             }`}
           >
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold bg-current text-white dark:text-slate-900">
+            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold bg-current text-slate-950">
               {frontImage ? '✓' : '1'}
             </span>
-            <span className="truncate">1. Front Side (Photo & ID)</span>
+            <span>Front Side</span>
           </div>
 
           <div
-            className={`py-3 px-3 text-center border-b-2 flex items-center justify-center gap-2 transition ${
+            className={`py-2 px-1 text-center border-b-2 flex items-center justify-center gap-1.5 transition ${
               step === 'back'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/20'
+                ? 'border-blue-500 text-blue-400 bg-blue-950/30'
                 : backImage
-                ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                : 'border-transparent text-slate-400'
+                ? 'border-emerald-500 text-emerald-400'
+                : 'border-transparent text-slate-500'
             }`}
           >
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold bg-current text-white dark:text-slate-900">
+            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold bg-current text-slate-950">
               {backImage ? '✓' : '2'}
             </span>
-            <span className="truncate">2. Back Side (Emergency Info)</span>
+            <span>Back Side</span>
           </div>
 
           <div
-            className={`py-3 px-3 text-center border-b-2 flex items-center justify-center gap-2 transition ${
+            className={`py-2 px-1 text-center border-b-2 flex items-center justify-center gap-1.5 transition ${
               step === 'review'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/20'
-                : 'border-transparent text-slate-400'
+                ? 'border-blue-500 text-blue-400 bg-blue-950/30'
+                : 'border-transparent text-slate-500'
             }`}
           >
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold bg-current text-white dark:text-slate-900">
+            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold bg-current text-slate-950">
               3
             </span>
-            <span className="truncate">3. Review & Verify</span>
+            <span>Verify</span>
           </div>
         </div>
 
-        {/* Modal Main View */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+        {/* MAIN BODY AREA */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 flex flex-col justify-between">
           {step !== 'review' ? (
-            <div className="flex flex-col items-center">
-              {/* Controls Toolbar */}
-              <div className="w-full flex flex-wrap items-center justify-between gap-2 mb-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-600 dark:text-slate-300 font-semibold flex items-center gap-1.5">
-                    Target:
-                    <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold uppercase">
-                      {step === 'front' ? 'Card Front' : 'Card Back'}
-                    </span>
-                  </span>
-
-                  {/* Orientation Switcher */}
-                  <button
-                    onClick={() =>
-                      setOrientation(orientation === 'vertical' ? 'horizontal' : 'vertical')
-                    }
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition"
-                    title="Change card framing orientation"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Card Shape: <strong>{orientation === 'vertical' ? 'Vertical (Portrait)' : 'Horizontal (Landscape)'}</strong></span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {cameras.length > 1 && (
-                    <button
-                      onClick={switchCamera}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
-                      title="Switch camera device"
-                    >
-                      <FlipHorizontal className="w-3.5 h-3.5" />
-                      <span>Switch Camera</span>
-                    </button>
-                  )}
-
-                  {/* Upload photo button in toolbar */}
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium transition"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Image File</span>
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleFileUpload(e, step)}
-                  />
-                </div>
-              </div>
-
-              {/* Camera Viewfinder Box */}
-              <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] max-h-[460px] bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-slate-700 shadow-2xl">
-                {/* Visual Shutter Flash */}
+            <div className="flex-1 flex flex-col items-center justify-between">
+              
+              {/* VIEWFINDER CONTAINER */}
+              <div
+                ref={containerRef}
+                className="relative w-full flex-1 min-h-[320px] max-h-[58vh] bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-2xl"
+              >
+                {/* Visual Camera Shutter Flash */}
                 {flashActive && (
                   <div className="absolute inset-0 bg-white z-40 animate-out fade-out duration-200 pointer-events-none" />
                 )}
 
                 {/* Countdown Timer Overlay */}
                 {countdown !== null && (
-                  <div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+                  <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-center justify-center pointer-events-none">
                     <span className="text-7xl font-extrabold text-white animate-ping">
                       {countdown}
                     </span>
@@ -587,100 +625,137 @@ export default function IdCardScannerModal({
                       className="absolute inset-0 w-full h-full object-cover"
                     />
 
-                    {/* Darkened Vignette Outside Card Frame */}
-                    <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+                    {/* Translucent Dark Mask Outside Reticle (WhatsApp Document Style) */}
+                    <div className="absolute inset-0 bg-black/55 pointer-events-none" />
 
-                    {/* Target Card Reticle (Vertical or Horizontal) */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    {/* CARD RETICLE CUTOUT (Aspect 1 : 1.58 Portrait) */}
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-3">
                       <div
+                        ref={reticleRef}
                         className={`relative transition-all duration-300 rounded-2xl border-2 shadow-2xl ${
                           orientation === 'vertical'
-                            ? 'h-[88%] aspect-[1/1.58] max-w-[310px]'
-                            : 'w-[82%] aspect-[1.58/1] max-h-[300px]'
+                            ? 'h-[92%] aspect-[1/1.58] max-w-[270px]'
+                            : 'w-[88%] aspect-[1.58/1] max-h-[260px]'
                         } ${
                           isSteady
-                            ? 'border-emerald-400 ring-4 ring-emerald-500/20'
-                            : 'border-blue-400 ring-4 ring-blue-500/20'
+                            ? 'border-emerald-400 ring-4 ring-emerald-500/25'
+                            : 'border-cyan-400/80 ring-2 ring-cyan-500/20'
                         }`}
                       >
-                        {/* Clear Cutout Window */}
+                        {/* Clear Cutout */}
                         <div className="absolute inset-0 bg-transparent" />
 
-                        {/* Corner Reticle Brackets */}
-                        <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 rounded-tl-xl border-emerald-400" />
-                        <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 rounded-tr-xl border-emerald-400" />
-                        <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 rounded-bl-xl border-emerald-400" />
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 rounded-br-xl border-emerald-400" />
-
-                        {/* Harsha Portrait Card Overlay Visual Hints */}
-                        {orientation === 'vertical' && step === 'front' && (
-                          <div className="absolute inset-0 p-3 flex flex-col justify-between opacity-60 text-white">
-                            {/* Top: Institution name guide */}
-                            <div className="h-6 border-b border-dashed border-white/40 flex items-center justify-center">
-                              <span className="text-[9px] font-bold tracking-wider uppercase">HARSHA INSTITUTIONS</span>
-                            </div>
-
-                            {/* Middle: Photo & details silhouette */}
-                            <div className="flex-1 flex items-center justify-between py-2">
-                              <div className="space-y-1 w-3/5">
-                                <div className="h-2 w-16 bg-white/30 rounded" />
-                                <div className="h-2 w-28 bg-white/20 rounded" />
-                                <div className="h-2 w-20 bg-white/20 rounded" />
-                              </div>
-                              <div className="w-16 h-20 border border-dashed border-white/60 rounded-md flex items-center justify-center bg-white/10">
-                                <User className="w-6 h-6 text-white/50" />
-                              </div>
-                            </div>
-
-                            {/* Bottom: Barcode and Roll No zone */}
-                            <div className="h-8 border-t border-dashed border-white/40 flex flex-col items-center justify-center">
-                              <span className="text-[8px] font-mono tracking-widest">||| 23BC023 |||</span>
-                            </div>
-                          </div>
-                        )}
+                        {/* WhatsApp Document Scanning Corner Brackets */}
+                        <div className={`absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 rounded-tl-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
+                        <div className={`absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 rounded-tr-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
+                        <div className={`absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 rounded-bl-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
+                        <div className={`absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 rounded-br-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
 
                         {/* Animated Laser Scanning Beam */}
-                        <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-lg shadow-cyan-500/60 animate-pulse top-1/2" />
+                        <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-lg shadow-cyan-400/80 animate-pulse top-1/2" />
 
-                        {/* Card Instruction Badge */}
-                        <div className="absolute bottom-2 inset-x-0 flex justify-center">
-                          <span className="bg-slate-950/85 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white shadow border border-slate-700">
-                            {step === 'front'
-                              ? 'Align FRONT side with photo & 23BC023 roll number'
-                              : 'Align BACK side with emergency & guardian info'}
+                        {/* Top Alignment Guide Title */}
+                        <div className="absolute top-2 inset-x-0 flex justify-center">
+                          <span className="bg-slate-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white border border-slate-700/80 shadow">
+                            {step === 'front' ? 'ALIGN FRONT (PHOTO & 23BC023)' : 'ALIGN BACK (EMERGENCY NO)'}
                           </span>
+                        </div>
+
+                        {/* Auto-Capture Progress Bar / Status Pill */}
+                        <div className="absolute bottom-2 inset-x-0 flex justify-center px-2">
+                          {autoCapture ? (
+                            <div className="bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-white border border-slate-700 shadow flex items-center gap-1.5">
+                              {autoCaptureProgress > 0 ? (
+                                <>
+                                  <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-emerald-400 transition-all duration-75"
+                                      style={{ width: `${autoCaptureProgress}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-emerald-400 font-mono text-[10px]">
+                                    Capturing...
+                                  </span>
+                                </>
+                              ) : isSteady ? (
+                                <span className="text-emerald-400 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" /> Hold still...
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">
+                                  Fit card in frame
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="bg-slate-950/85 px-3 py-1 rounded-full text-[10px] font-semibold text-slate-300 border border-slate-700">
+                              Tap shutter to capture
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Live Metric HUD */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                      <div className="flex items-center gap-2 bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 text-white text-xs">
-                        <span className="text-[11px] font-medium text-slate-300">Clarity:</span>
-                        <div className="w-20 h-2 bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full transition-all duration-200 ${
-                              isSteady ? 'bg-emerald-400' : 'bg-blue-400'
-                            }`}
-                            style={{ width: `${clarityScore}%` }}
-                          />
-                        </div>
-                        <span className="font-mono text-[11px] font-bold">{clarityScore}%</span>
-                      </div>
+                    {/* SLEEK FLOATING TOP HUD (Mobile-friendly pills) */}
+                    <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-auto z-20 text-xs">
+                      {/* Auto Capture Toggle */}
+                      <button
+                        onClick={() => setAutoCapture(!autoCapture)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-semibold border transition ${
+                          autoCapture
+                            ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300'
+                            : 'bg-slate-950/80 border-slate-700 text-slate-400'
+                        }`}
+                        title="Toggle automatic capture when steady"
+                      >
+                        {autoCapture ? <Zap className="w-3 h-3 text-emerald-400" /> : <ZapOff className="w-3 h-3" />}
+                        <span>Auto {autoCapture ? 'ON' : 'OFF'}</span>
+                      </button>
 
-                      <div className="flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 text-white text-xs font-semibold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Ready to capture</span>
+                      {/* Right icons: Flip camera, Orientation, Upload */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setOrientation(orientation === 'vertical' ? 'horizontal' : 'vertical')}
+                          className="p-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white backdrop-blur-md"
+                          title="Switch portrait/landscape orientation"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+
+                        {cameras.length > 1 && (
+                          <button
+                            onClick={switchCamera}
+                            className="p-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white backdrop-blur-md"
+                            title="Switch front/rear camera"
+                          >
+                            <FlipHorizontal className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white backdrop-blur-md"
+                          title="Upload image from gallery"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                        </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleFileUpload(e, step)}
+                        />
                       </div>
                     </div>
                   </>
                 ) : (
-                  /* No Camera Fallback Dropzone */
-                  <div className="p-8 text-center text-slate-300 flex flex-col items-center max-w-md">
-                    <AlertCircle className="w-12 h-12 text-amber-400 mb-2.5" />
-                    <h3 className="font-bold text-white text-base mb-1">Upload Card Photo Directly</h3>
+                  /* No Camera Fallback */
+                  <div className="p-6 text-center text-slate-300 flex flex-col items-center max-w-sm">
+                    <AlertCircle className="w-10 h-10 text-amber-400 mb-2" />
+                    <h3 className="font-bold text-white text-sm mb-1">Camera Permission Needed</h3>
                     <p className="text-xs text-slate-400 mb-4">{cameraError}</p>
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition shadow-lg shadow-blue-600/30">
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition">
                       <Upload className="w-4 h-4" />
                       <span>Choose {step === 'front' ? 'Card Front' : 'Card Back'} Photo</span>
                       <input
@@ -694,107 +769,105 @@ export default function IdCardScannerModal({
                 )}
               </div>
 
-              {/* Shutter & Controls Bottom Bar */}
-              <div className="w-full flex items-center justify-between mt-4">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1.5 transition"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Choose file from device</span>
-                </button>
-
-                {/* Shutter Center Controls */}
-                <div className="flex items-center gap-3">
-                  {step === 'back' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
+              {/* BOTTOM CONTROLS (Ergonomic for Thumbs) */}
+              <div className="w-full flex items-center justify-between px-2 pt-3 shrink-0">
+                <div className="w-24">
+                  {step === 'back' ? (
+                    <button
+                      type="button"
                       onClick={() => {
                         setStep('front');
                         setFrontImage(null);
                         startCamera();
                       }}
+                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
                     >
-                      <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                      Retake Front
-                    </Button>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Retake Front</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Gallery</span>
+                    </button>
                   )}
+                </div>
 
-                  {/* 3s Timer Shutter Option */}
+                {/* Tactile Shutter Button */}
+                <div className="flex items-center gap-3">
                   <button
                     onClick={() => handleShutterClick(true)}
-                    className="p-3 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition"
-                    title="Capture with 3-second timer"
+                    className="p-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                    title="3-second timer"
                   >
                     <Clock className="w-4 h-4" />
                   </button>
 
-                  {/* Instant Capture Shutter Button */}
                   <button
                     onClick={() => handleShutterClick(false)}
                     disabled={isCameraStarting}
-                    className="group relative flex items-center justify-center w-16 h-16 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-600/40 ring-4 ring-blue-500/20 active:scale-95 transition"
-                    title="Capture Photo Now"
+                    className="group relative flex items-center justify-center w-15 h-15 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/40 ring-4 ring-blue-500/20 active:scale-95 transition"
+                    title="Capture ID Card Now"
                   >
-                    <Camera className="w-7 h-7 group-hover:scale-110 transition" />
+                    <Camera className="w-6 h-6 group-hover:scale-110 transition" />
                   </button>
                 </div>
 
-                <div className="w-28 text-right">
-                  <span className="text-[11px] text-slate-400">
-                    Step {step === 'front' ? '1 of 2' : '2 of 2'}
+                <div className="w-24 text-right">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {step === 'front' ? '1 of 2' : '2 of 2'}
                   </span>
                 </div>
               </div>
             </div>
           ) : (
-            /* STEP 3: DUAL INSPECTION REVIEW & HARSHA PATTERN EXTRACTION */
-            <div className="space-y-6 animate-fade-in">
+            /* STEP 3: REVIEW & VERIFY SCREEN */
+            <div className="space-y-4 animate-fade-in">
               {/* OCR Status banner */}
               {isProcessingOcr ? (
-                <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 p-4 rounded-xl flex items-center gap-3">
-                  <Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
-                  <div className="text-xs text-blue-900 dark:text-blue-200">
+                <div className="bg-blue-950/40 border border-blue-800 p-3 rounded-xl flex items-center gap-2.5">
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+                  <div className="text-xs text-blue-200">
                     <p className="font-bold">{ocrStatusText}</p>
-                    <p className="text-blue-700 dark:text-blue-400 mt-0.5">
-                      Extracting roll number, student name, and course automatically...
+                    <p className="text-blue-400 text-[11px]">
+                      Extracting roll number 23BC023 & course details...
                     </p>
                   </div>
                 </div>
               ) : extractedData?.studentIdNumber ? (
-                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-4 rounded-xl flex items-center gap-3">
-                  <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <div className="text-xs text-emerald-900 dark:text-emerald-200">
-                    <p className="font-bold">ID Details Detected Successfully!</p>
-                    <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
-                      Recognized Roll No <strong>{extractedData.studentIdNumber}</strong> and auto-filled your profile fields. You can confirm or adjust them below.
+                <div className="bg-emerald-950/40 border border-emerald-800 p-3 rounded-xl flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div className="text-xs text-emerald-200">
+                    <p className="font-bold">Roll Number Auto-Detected!</p>
+                    <p className="text-emerald-400 text-[11px]">
+                      Recognized Roll No <strong>{extractedData.studentIdNumber}</strong> ({extractedData.department || 'BCA'}).
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 p-4 rounded-xl flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                  <div className="text-xs text-slate-700 dark:text-slate-300">
-                    <p className="font-bold text-slate-900 dark:text-white">
-                      Inspect Both Sides Before Saving
-                    </p>
-                    <p className="mt-0.5 text-slate-600 dark:text-slate-400">
-                      Ensure your Roll Number (e.g. 23BC023), Photo, and Department are clearly visible.
+                <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-slate-300">
+                    <p className="font-bold text-white">Review Cropped ID Card</p>
+                    <p className="text-slate-400 text-[11px]">
+                      Background removed. Please confirm your Roll Number (e.g. 23BC023) before saving.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Front & Back Vertical Cards Preview */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Front Side */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-900/50 flex flex-col items-center">
-                  <div className="w-full flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      Front Side (Photo & Roll No)
+              {/* Cropped Front & Back Preview Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Front */}
+                <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-950/50 flex flex-col items-center">
+                  <div className="w-full flex items-center justify-between mb-1.5 text-[11px]">
+                    <span className="font-bold text-slate-300 flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      Front Side
                     </span>
                     <button
                       onClick={() => {
@@ -802,13 +875,12 @@ export default function IdCardScannerModal({
                         setFrontImage(null);
                         startCamera();
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold flex items-center gap-1"
+                      className="text-blue-400 hover:text-blue-300 font-semibold"
                     >
-                      <RotateCcw className="w-3 h-3" />
                       Retake
                     </button>
                   </div>
-                  <div className="relative h-64 aspect-[1/1.58] rounded-xl overflow-hidden bg-slate-950 border border-slate-300 dark:border-slate-700 shadow-md">
+                  <div className="relative h-44 sm:h-52 aspect-[1/1.58] rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shadow">
                     <img
                       src={frontImage}
                       alt="ID Card Front"
@@ -817,12 +889,12 @@ export default function IdCardScannerModal({
                   </div>
                 </div>
 
-                {/* Back Side */}
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50 dark:bg-slate-900/50 flex flex-col items-center">
-                  <div className="w-full flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      Back Side (Emergency Contacts)
+                {/* Back */}
+                <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-950/50 flex flex-col items-center">
+                  <div className="w-full flex items-center justify-between mb-1.5 text-[11px]">
+                    <span className="font-bold text-slate-300 flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      Back Side
                     </span>
                     <button
                       onClick={() => {
@@ -830,13 +902,12 @@ export default function IdCardScannerModal({
                         setBackImage(null);
                         startCamera();
                       }}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold flex items-center gap-1"
+                      className="text-blue-400 hover:text-blue-300 font-semibold"
                     >
-                      <RotateCcw className="w-3 h-3" />
                       Retake
                     </button>
                   </div>
-                  <div className="relative h-64 aspect-[1/1.58] rounded-xl overflow-hidden bg-slate-950 border border-slate-300 dark:border-slate-700 shadow-md">
+                  <div className="relative h-44 sm:h-52 aspect-[1/1.58] rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shadow">
                     <img
                       src={backImage}
                       alt="ID Card Back"
@@ -846,47 +917,51 @@ export default function IdCardScannerModal({
                 </div>
               </div>
 
-              {/* Form Confirmation with Harsha Patterns */}
-              <div className="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <span>Student ID Information</span>
+              {/* Form Confirmation */}
+              <div className="p-4 bg-slate-800/40 rounded-xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                    Student ID Information
+                  </span>
                   {extractedData?.studentIdNumber && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
                       Auto-detected
                     </span>
                   )}
-                </h4>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Student ID / Roll No <span className="text-red-500">*</span>
+                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                      Student ID / Roll No <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
                       value={studentIdInput}
                       onChange={(e) => setStudentIdInput(e.target.value)}
                       placeholder="e.g. 23BC023"
-                      className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none uppercase"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">Found above barcode (e.g. 23BC023)</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Found above barcode (e.g. 23BC023)</p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
                       Course / Department
                     </label>
                     <input
                       type="text"
                       value={departmentInput}
                       onChange={(e) => setDepartmentInput(e.target.value)}
-                      placeholder="e.g. Bachelor of Computer Application"
-                      className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="e.g. Bachelor of Computer Application (BCA)"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-2 gap-3 text-xs pt-1">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
                       Academic Year
                     </label>
                     <input
@@ -894,38 +969,27 @@ export default function IdCardScannerModal({
                       value={yearInput}
                       onChange={(e) => setYearInput(e.target.value)}
                       placeholder="e.g. 3rd Year"
-                      className="w-full text-xs px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                      Emergency Phone
+                    </label>
+                    <input
+                      type="text"
+                      value={emergencyPhoneInput}
+                      onChange={(e) => setEmergencyPhoneInput(e.target.value)}
+                      placeholder="e.g. 9448040825"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                   </div>
                 </div>
-
-                {/* Optional additional details from Harsha card */}
-                {(batchInput || bloodGroupInput || emergencyPhoneInput) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700/60 text-xs">
-                    {batchInput && (
-                      <div className="text-slate-600 dark:text-slate-400">
-                        <span className="font-medium text-slate-500">Batch: </span>
-                        <strong className="text-slate-800 dark:text-slate-200">{batchInput}</strong>
-                      </div>
-                    )}
-                    {bloodGroupInput && (
-                      <div className="text-slate-600 dark:text-slate-400">
-                        <span className="font-medium text-slate-500">Blood Group: </span>
-                        <strong className="text-slate-800 dark:text-slate-200">{bloodGroupInput}</strong>
-                      </div>
-                    )}
-                    {emergencyPhoneInput && (
-                      <div className="text-slate-600 dark:text-slate-400">
-                        <span className="font-medium text-slate-500">Emergency Ph: </span>
-                        <strong className="text-slate-800 dark:text-slate-200">{emergencyPhoneInput}</strong>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Actions Footer */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-2.5 pt-2">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -935,6 +999,7 @@ export default function IdCardScannerModal({
                     startCamera();
                   }}
                   disabled={isUploading}
+                  className="text-xs"
                 >
                   Start Over
                 </Button>
@@ -942,9 +1007,9 @@ export default function IdCardScannerModal({
                 <Button
                   onClick={handleSubmit}
                   isLoading={isUploading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 text-xs shadow-lg shadow-emerald-600/30"
                 >
-                  <ShieldCheck className="w-4 h-4 mr-2" />
+                  <ShieldCheck className="w-4 h-4 mr-1.5" />
                   Save & Verify Student ID
                 </Button>
               </div>

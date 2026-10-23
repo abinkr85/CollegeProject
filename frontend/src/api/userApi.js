@@ -24,10 +24,66 @@ export async function revokeAllSessions() {
   return unwrapEnvelope(data);
 }
 
+function dataUrlToBlob(dataUrl) {
+  try {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (err) {
+    console.warn('Failed to convert dataURL to blob:', err);
+    return null;
+  }
+}
+
 export async function uploadStudentIdCard(payload) {
-  const isFormData = payload instanceof FormData;
+  let body = payload;
+  let isFormData = payload instanceof FormData;
+
+  if (!isFormData && (payload?.frontImage || payload?.backImage)) {
+    const formData = new FormData();
+    if (payload.studentIdNumber) formData.append('studentIdNumber', payload.studentIdNumber);
+    if (payload.department) formData.append('department', payload.department);
+    if (payload.year) formData.append('year', payload.year);
+
+    if (payload.frontImage) {
+      if (typeof payload.frontImage === 'string' && payload.frontImage.startsWith('data:')) {
+        const blob = dataUrlToBlob(payload.frontImage);
+        if (blob) {
+          formData.append('frontImage', blob, 'front_card.jpg');
+        } else {
+          formData.append('frontImage', payload.frontImage);
+        }
+      } else {
+        formData.append('frontImage', payload.frontImage);
+      }
+    }
+
+    if (payload.backImage) {
+      if (typeof payload.backImage === 'string' && payload.backImage.startsWith('data:')) {
+        const blob = dataUrlToBlob(payload.backImage);
+        if (blob) {
+          formData.append('backImage', blob, 'back_card.jpg');
+        } else {
+          formData.append('backImage', payload.backImage);
+        }
+      } else {
+        formData.append('backImage', payload.backImage);
+      }
+    }
+
+    body = formData;
+    isFormData = true;
+  }
+
   const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
-  const { data } = await axiosInstance.post('/api/user/id-card', payload, config);
+  const { data } = await axiosInstance.post('/api/user/id-card', body, config);
   return unwrapEnvelope(data);
 }
+
 

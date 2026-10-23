@@ -16,8 +16,20 @@ export const errorHandler = (err, req, res, next) => {
     })
   }
 
+  if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
+    return res.status(413).json({
+      success: false,
+      message: 'Uploaded payload is too large. Please use a compressed card image.',
+      requestId: req.id,
+    })
+  }
+
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     const prismaErrors = {
+      P2000: {
+        status: 400,
+        message: 'The provided value is too long for the database field',
+      },
       P2002: {
         status: 409,
         message: 'A record with this value already exists',

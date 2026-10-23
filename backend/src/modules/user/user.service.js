@@ -168,15 +168,21 @@ export const uploadIdCard = async (
     throw new BadRequestError('Both front and back ID card images are required for verification')
   }
 
-  const [frontUpload, backUpload] = await Promise.all([
-    uploadToCloudinary(front, 'campus-student-ids'),
-    uploadToCloudinary(back, 'campus-student-ids'),
-  ])
+  let frontUpload, backUpload
+  try {
+    ;[frontUpload, backUpload] = await Promise.all([
+      uploadToCloudinary(front, 'campus-student-ids'),
+      uploadToCloudinary(back, 'campus-student-ids'),
+    ])
+  } catch (err) {
+    logger.error({ err }, 'Cloudinary upload failed for student ID card')
+    throw new BadRequestError(`Image upload failed: ${err.message || 'Storage error'}`)
+  }
 
   const updateData = {
     studentIdNumber: studentIdNumber.trim(),
-    idCardFrontUrl: frontUpload.secure_url,
-    idCardBackUrl: backUpload.secure_url,
+    idCardFrontUrl: frontUpload?.secure_url || null,
+    idCardBackUrl: backUpload?.secure_url || null,
     idCardStatus: 'VERIFIED',
     idCardScannedAt: new Date(),
     idCardVerifiedAt: new Date(),
