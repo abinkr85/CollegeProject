@@ -113,6 +113,9 @@ export default function IdCardScannerModal({
 
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
+  const frontImageRef = useRef(null);
+  const backImageRef = useRef(null);
+  const [stepNotice, setStepNotice] = useState('');
 
   // Extracted and form values
   const [studentIdInput, setStudentIdInput] = useState(currentStudentId);
@@ -173,6 +176,9 @@ export default function IdCardScannerModal({
       stepRef.current = 'front';
       setFrontImage(null);
       setBackImage(null);
+      frontImageRef.current = null;
+      backImageRef.current = null;
+      setStepNotice('');
       setStudentIdInput(currentStudentId);
       setDepartmentInput(currentDepartment);
       setYearInput(currentYear);
@@ -187,6 +193,9 @@ export default function IdCardScannerModal({
       startCamera();
     } else {
       stopCamera();
+      frontImageRef.current = null;
+      backImageRef.current = null;
+      setStepNotice('');
       toast.dismiss();
     }
     return () => {
@@ -285,10 +294,18 @@ export default function IdCardScannerModal({
 
   // Real-time clarity check & auto-capture loop
   const startClarityLoop = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
     lastClarityCheckRef.current = 0;
 
     const loop = (timestamp) => {
-      if (!videoRef.current || videoRef.current.readyState < 2) {
+      if (stepRef.current === 'review' || !videoRef.current) {
+        return;
+      }
+
+      if (videoRef.current.readyState < 2) {
         animationFrameRef.current = requestAnimationFrame(loop);
         return;
       }
@@ -353,6 +370,9 @@ export default function IdCardScannerModal({
    */
   const takeSnapshot = () => {
     if (isCapturingRef.current) return;
+    if (stepRef.current === 'review') return;
+    if (stepRef.current === 'front' && frontImageRef.current) return;
+    if (stepRef.current === 'back' && backImageRef.current) return;
     if (!videoRef.current || !containerRef.current || !reticleRef.current) return;
     isCapturingRef.current = true;
 
@@ -460,20 +480,21 @@ export default function IdCardScannerModal({
     toast.dismiss();
 
     if (currentStep === 'front') {
+      if (frontImageRef.current) return;
+      frontImageRef.current = dataUrl;
       setFrontImage(dataUrl);
       setStep('back');
       stepRef.current = 'back';
 
-      warmupFramesRef.current = 8;
-      // Keep auto-capture locked for 1.6s so user has time to flip card
+      warmupFramesRef.current = 10;
+      setStepNotice('✓ Front Captured! Align and scan Back Side');
+      setTimeout(() => setStepNotice(''), 2500);
+
+      // Keep auto-capture locked for 1.8s so user has time to flip card
       setTimeout(() => {
         isCapturingRef.current = false;
         autoCaptureCounterRef.current = 0;
-      }, 1600);
-
-      toast.success('Front side captured! Now flip and scan the back side.', {
-        toastId: 'id-card-step-toast'
-      });
+      }, 1800);
 
       // Run background OCR extraction on Front side (cropped card)
       setIsProcessingOcr(true);
@@ -508,15 +529,14 @@ export default function IdCardScannerModal({
         setIsProcessingOcr(false);
       }
     } else if (currentStep === 'back') {
+      if (backImageRef.current) return;
+      backImageRef.current = dataUrl;
       setBackImage(dataUrl);
       setStep('review');
       stepRef.current = 'review';
+      setStepNotice('');
       stopCamera();
       isCapturingRef.current = false;
-
-      toast.success('Both sides scanned! Please review details.', {
-        toastId: 'id-card-step-toast'
-      });
 
       // Run OCR on Back side to capture emergency contact / parent info
       try {
@@ -674,6 +694,16 @@ export default function IdCardScannerModal({
                 {/* Visual Camera Shutter Flash */}
                 {flashActive && (
                   <div className="absolute inset-0 bg-white z-40 animate-out fade-out duration-200 pointer-events-none" />
+                )}
+
+                {/* In-viewfinder floating status badge */}
+                {stepNotice && (
+                  <div className="absolute top-12 inset-x-4 flex justify-center z-30 pointer-events-none animate-bounce">
+                    <div className="bg-emerald-600/95 text-white font-bold text-xs px-3.5 py-1.5 rounded-full shadow-2xl flex items-center gap-1.5 border border-emerald-300 backdrop-blur-md">
+                      <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                      <span>{stepNotice}</span>
+                    </div>
+                  </div>
                 )}
 
                 {/* Countdown Timer Overlay */}
@@ -844,7 +874,10 @@ export default function IdCardScannerModal({
                       type="button"
                       onClick={() => {
                         setStep('front');
+                        stepRef.current = 'front';
                         setFrontImage(null);
+                        frontImageRef.current = null;
+                        setStepNotice('');
                         startCamera();
                       }}
                       className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
@@ -939,7 +972,10 @@ export default function IdCardScannerModal({
                     <button
                       onClick={() => {
                         setStep('front');
+                        stepRef.current = 'front';
                         setFrontImage(null);
+                        frontImageRef.current = null;
+                        setStepNotice('');
                         startCamera();
                       }}
                       className="text-blue-400 hover:text-blue-300 font-semibold"
@@ -966,7 +1002,10 @@ export default function IdCardScannerModal({
                     <button
                       onClick={() => {
                         setStep('back');
+                        stepRef.current = 'back';
                         setBackImage(null);
+                        backImageRef.current = null;
+                        setStepNotice('');
                         startCamera();
                       }}
                       className="text-blue-400 hover:text-blue-300 font-semibold"
@@ -1061,8 +1100,12 @@ export default function IdCardScannerModal({
                   variant="outline"
                   onClick={() => {
                     setStep('front');
+                    stepRef.current = 'front';
                     setFrontImage(null);
                     setBackImage(null);
+                    frontImageRef.current = null;
+                    backImageRef.current = null;
+                    setStepNotice('');
                     startCamera();
                   }}
                   disabled={isUploading}

@@ -27,7 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <TimezoneProvider>
           <App />
-          <ToastContainer position="top-right" autoClose={3000} newestOnTop />
+          <ToastContainer position="top-right" autoClose={3000} newestOnTop limit={1} />
         </TimezoneProvider>
       </AuthProvider>
     </QueryClientProvider>
