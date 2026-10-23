@@ -33,6 +33,8 @@ import IdCardBadgeWidget from '../../components/id-card/IdCardBadgeWidget';
 import IdCardScannerModal from '../../components/id-card/IdCardScannerModal';
 
 const DEPARTMENTS = [
+  'Bachelor of Computer Application (BCA)',
+  'Bachelor of Business Administration (BBA)',
   'Harsha Institute of Technology',
   'Harsha Institute of Management Studies',
   'Harsha College of Nursing',

@@ -46,6 +46,8 @@ import { useSystemTimezone } from '../../context/TimezoneContext';
 import { useAuth } from '../../hooks/useAuth';
 
 const DEPARTMENTS = [
+  'Bachelor of Computer Application (BCA)',
+  'Bachelor of Business Administration (BBA)',
   'Harsha Institute of Technology',
   'Harsha Institute of Management Studies',
   'Harsha College of Nursing',

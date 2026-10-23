@@ -26,6 +26,7 @@
     "react-router-dom": "latest",
     "react-toastify": "latest",
     "recharts": "latest",
+    "tesseract.js": "^7.0.0",
     "zod": "latest"
   },
   "devDependencies": {
