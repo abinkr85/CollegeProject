@@ -338,6 +338,13 @@ def _matches_any(text_lower: str, keywords: set[str]) -> bool:
     return any(_contains_keyword(text_lower, keyword) for keyword in keywords)
 
 
+def _keyword_category(text_lower: str) -> str | None:
+    for category, keywords in CATEGORY_KEYWORDS:
+        if _matches_any(text_lower, keywords):
+            return category
+    return None
+
+
 def _keyword_category_scores(text_lower: str) -> dict[str, int]:
     scores = {}
     for category, keywords in CATEGORY_KEYWORDS:
