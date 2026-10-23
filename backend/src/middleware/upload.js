@@ -61,18 +61,17 @@ export const uploadIdCardPair = (req, res, next) => {
     { name: 'frontImage', maxCount: 1 },
     { name: 'backImage', maxCount: 1 },
   ])(req, res, (err) => {
-    if (!err) {
-      return next()
-    }
-
-    if (err instanceof multer.MulterError) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return next(new BadRequestError('Each ID card image must be 10MB or smaller'))
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return next(new BadRequestError('Each ID card image must be 10MB or smaller'))
+        }
+        return next(new BadRequestError(`Upload error: ${err.message}`))
       }
-      return next(new BadRequestError(`Upload error: ${err.message}`))
+      return next(new BadRequestError(`Invalid upload stream: ${err.message || 'Malformed multipart request'}`))
     }
 
-    next(err)
+    next()
   })
 }
 

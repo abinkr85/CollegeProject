@@ -49,8 +49,8 @@ async function runOcrOnImage(imageSrc) {
 // Discrete Laplacian edge sharpness calculation on canvas
 function calculateSharpness(ctx, width, height) {
   try {
-    const sampleWidth = Math.min(width, 240);
-    const sampleHeight = Math.min(height, 360);
+    const sampleWidth = Math.min(width, 160);
+    const sampleHeight = Math.min(height, 120);
     const imgData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
     const data = imgData.data;
 
@@ -139,7 +139,6 @@ export default function IdCardScannerModal({
   const [flashActive, setFlashActive] = useState(false);
 
   // Live quality & auto-capture metrics
-  const [clarityScore, setClarityScore] = useState(70);
   const [isSteady, setIsSteady] = useState(false);
   const [autoCaptureProgress, setAutoCaptureProgress] = useState(0);
 
@@ -152,8 +151,9 @@ export default function IdCardScannerModal({
   const reticleRef = useRef(null);
 
   const autoCaptureCounterRef = useRef(0);
-  const warmupFramesRef = useRef(35); // 1.2s camera warmup to prevent premature capture
+  const warmupFramesRef = useRef(8); // Warmup frames to let camera exposure stabilize
   const isCapturingRef = useRef(false);
+  const lastClarityCheckRef = useRef(0);
 
   // Sync stepRef with step
   useEffect(() => {
@@ -181,8 +181,9 @@ export default function IdCardScannerModal({
       autoCaptureRef.current = true;
       setAutoCaptureProgress(0);
       autoCaptureCounterRef.current = 0;
-      warmupFramesRef.current = 35;
+      warmupFramesRef.current = 8;
       isCapturingRef.current = false;
+      lastClarityCheckRef.current = 0;
       startCamera();
     } else {
       stopCamera();
@@ -284,56 +285,61 @@ export default function IdCardScannerModal({
 
   // Real-time clarity check & auto-capture loop
   const startClarityLoop = () => {
-    const loop = () => {
+    lastClarityCheckRef.current = 0;
+
+    const loop = (timestamp) => {
       if (!videoRef.current || videoRef.current.readyState < 2) {
         animationFrameRef.current = requestAnimationFrame(loop);
         return;
       }
 
-      const video = videoRef.current;
-      const canvas = analysisCanvasRef.current || document.createElement('canvas');
-      analysisCanvasRef.current = canvas;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      // Throttle sharpness calculation to every 120ms to prevent mobile CPU/thread stalling
+      if (timestamp - lastClarityCheckRef.current >= 120) {
+        lastClarityCheckRef.current = timestamp;
 
-      const w = 240;
-      const h = Math.round((video.videoHeight / video.videoWidth) * 240) || 320;
-      canvas.width = w;
-      canvas.height = h;
+        const video = videoRef.current;
+        const canvas = analysisCanvasRef.current || document.createElement('canvas');
+        analysisCanvasRef.current = canvas;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-      ctx.drawImage(video, 0, 0, w, h);
-      const { sharpness } = calculateSharpness(ctx, w, h);
+        const w = 160;
+        const h = Math.round((video.videoHeight / video.videoWidth) * 160) || 120;
+        canvas.width = w;
+        canvas.height = h;
 
-      // Score 0 - 100
-      const score = Math.min(100, Math.max(25, Math.round((sharpness / 45) * 100)));
-      setClarityScore(score);
+        ctx.drawImage(video, 0, 0, w, h);
+        const { sharpness } = calculateSharpness(ctx, w, h);
 
-      // Allow camera to warm up and stabilize for 1.2s before auto-capture evaluates
-      if (warmupFramesRef.current > 0) {
-        warmupFramesRef.current -= 1;
-        animationFrameRef.current = requestAnimationFrame(loop);
-        return;
-      }
+        // Quality score: calibrated for steady ID alignment
+        const score = Math.min(100, Math.max(20, Math.round((sharpness / 35) * 100)));
 
-      const steady = score >= 40;
-      setIsSteady(steady);
+        // Camera warmup period to allow sensor exposure/focus to settle
+        if (warmupFramesRef.current > 0) {
+          warmupFramesRef.current -= 1;
+        } else {
+          const steady = score >= 35;
+          setIsSteady((prev) => (prev !== steady ? steady : prev));
 
-      // WhatsApp-style Auto Capture Logic
-      if (autoCaptureRef.current && steady && !isCapturingRef.current && stepRef.current !== 'review') {
-        autoCaptureCounterRef.current += 1;
-        // ~28 frames = ~1.1s of deliberate steady card alignment
-        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 28) * 100));
-        setAutoCaptureProgress(pct);
+          // WhatsApp-style Auto Capture Logic
+          if (autoCaptureRef.current && steady && !isCapturingRef.current && stepRef.current !== 'review') {
+            autoCaptureCounterRef.current += 1;
+            // 7 checks at 120ms = ~840ms of steady card alignment
+            const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 7) * 100));
+            setAutoCaptureProgress(pct);
 
-        if (pct >= 100) {
-          isCapturingRef.current = true;
-          autoCaptureCounterRef.current = 0;
-          setAutoCaptureProgress(0);
-          takeSnapshot();
+            if (pct >= 100) {
+              autoCaptureCounterRef.current = 0;
+              setAutoCaptureProgress(0);
+              takeSnapshot();
+            }
+          } else {
+            if (autoCaptureCounterRef.current > 0) {
+              autoCaptureCounterRef.current = Math.max(0, autoCaptureCounterRef.current - 1);
+              const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 7) * 100));
+              setAutoCaptureProgress(pct);
+            }
+          }
         }
-      } else {
-        autoCaptureCounterRef.current = Math.max(0, autoCaptureCounterRef.current - 1);
-        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 28) * 100));
-        setAutoCaptureProgress(pct);
       }
 
       animationFrameRef.current = requestAnimationFrame(loop);
@@ -346,79 +352,88 @@ export default function IdCardScannerModal({
    * WhatsApp Document Scan: Crop out background room & save ONLY the card rectangle!
    */
   const takeSnapshot = () => {
-    if (!videoRef.current || !containerRef.current || !reticleRef.current) return;
     if (isCapturingRef.current) return;
+    if (!videoRef.current || !containerRef.current || !reticleRef.current) return;
     isCapturingRef.current = true;
 
-    const video = videoRef.current;
-
-    // Visual camera shutter flash & haptic feedback
-    setFlashActive(true);
-    if (navigator.vibrate) {
-      try { navigator.vibrate([40, 30, 40]); } catch (_) {}
-    }
-    setTimeout(() => setFlashActive(false), 180);
-
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const reticleRect = reticleRef.current.getBoundingClientRect();
-
-    const vWidth = video.videoWidth || 1920;
-    const vHeight = video.videoHeight || 1080;
-
-    // Calculate object-cover scale and offsets
-    const videoAspect = vWidth / vHeight;
-    const containerAspect = containerRect.width / containerRect.height;
-
-    let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0;
-
-    if (videoAspect > containerAspect) {
-      renderedHeight = containerRect.height;
-      renderedWidth = containerRect.height * videoAspect;
-      offsetX = (renderedWidth - containerRect.width) / 2;
-    } else {
-      renderedWidth = containerRect.width;
-      renderedHeight = containerRect.width / videoAspect;
-      offsetY = (renderedHeight - containerRect.height) / 2;
-    }
-
-    const scaleX = vWidth / renderedWidth;
-    const scaleY = vHeight / renderedHeight;
-
-    // Calculate crop rectangle strictly inside the video source
-    const cropX = Math.max(0, Math.round(((reticleRect.left - containerRect.left) + offsetX) * scaleX));
-    const cropY = Math.max(0, Math.round(((reticleRect.top - containerRect.top) + offsetY) * scaleY));
-    const cropW = Math.min(vWidth - cropX, Math.round(reticleRect.width * scaleX));
-    const cropH = Math.min(vHeight - cropY, Math.round(reticleRect.height * scaleY));
-
-    // Target canvas: Card dimensions only (Background completely removed!)
-    const canvas = document.createElement('canvas');
-    const targetW = orientation === 'vertical' ? 760 : 1200;
-    const targetH = orientation === 'vertical' ? 1200 : 760;
-
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-
-    // Draw only the cropped reticle area (background discarded!)
-    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
-
-    // Apply smart contrast/brightness enhancement
     try {
-      const imgData = ctx.getImageData(0, 0, targetW, targetH);
-      const d = imgData.data;
-      const contrast = 1.08;
-      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-      for (let i = 0; i < d.length; i += 4) {
-        d[i] = factor * (d[i] - 128) + 128;
-        d[i + 1] = factor * (d[i + 1] - 128) + 128;
-        d[i + 2] = factor * (d[i + 2] - 128) + 128;
+      const video = videoRef.current;
+      if (!video.videoWidth || !video.videoHeight) {
+        isCapturingRef.current = false;
+        return;
       }
-      ctx.putImageData(imgData, 0, 0);
-    } catch (_) {}
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    const activeStep = stepRef.current;
-    processCapturedImage(dataUrl, activeStep);
+      // Visual camera shutter flash & haptic feedback
+      setFlashActive(true);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate([50, 40, 50]); } catch (_) {}
+      }
+      setTimeout(() => setFlashActive(false), 180);
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const reticleRect = reticleRef.current.getBoundingClientRect();
+
+      const vWidth = video.videoWidth || 1920;
+      const vHeight = video.videoHeight || 1080;
+
+      // Calculate object-cover scale and offsets
+      const videoAspect = vWidth / vHeight;
+      const containerAspect = containerRect.width / containerRect.height;
+
+      let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0;
+
+      if (videoAspect > containerAspect) {
+        renderedHeight = containerRect.height;
+        renderedWidth = containerRect.height * videoAspect;
+        offsetX = (renderedWidth - containerRect.width) / 2;
+      } else {
+        renderedWidth = containerRect.width;
+        renderedHeight = containerRect.width / videoAspect;
+        offsetY = (renderedHeight - containerRect.height) / 2;
+      }
+
+      const scaleX = vWidth / renderedWidth;
+      const scaleY = vHeight / renderedHeight;
+
+      // Calculate crop rectangle strictly inside the video source
+      const cropX = Math.max(0, Math.round(((reticleRect.left - containerRect.left) + offsetX) * scaleX));
+      const cropY = Math.max(0, Math.round(((reticleRect.top - containerRect.top) + offsetY) * scaleY));
+      const cropW = Math.min(vWidth - cropX, Math.round(reticleRect.width * scaleX));
+      const cropH = Math.min(vHeight - cropY, Math.round(reticleRect.height * scaleY));
+
+      // Target canvas: Card dimensions only (Background completely removed!)
+      const canvas = document.createElement('canvas');
+      const targetW = orientation === 'vertical' ? 760 : 1200;
+      const targetH = orientation === 'vertical' ? 1200 : 760;
+
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+
+      // Draw only the cropped reticle area (background discarded!)
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+      // Apply smart contrast/brightness enhancement
+      try {
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const d = imgData.data;
+        const contrast = 1.08;
+        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+        for (let i = 0; i < d.length; i += 4) {
+          d[i] = factor * (d[i] - 128) + 128;
+          d[i + 1] = factor * (d[i + 1] - 128) + 128;
+          d[i + 2] = factor * (d[i + 2] - 128) + 128;
+        }
+        ctx.putImageData(imgData, 0, 0);
+      } catch (_) {}
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const activeStep = stepRef.current;
+      processCapturedImage(dataUrl, activeStep);
+    } catch (err) {
+      console.error('Take snapshot error:', err);
+      isCapturingRef.current = false;
+    }
   };
 
   // Shutter with optional 3-sec timer
@@ -449,14 +464,14 @@ export default function IdCardScannerModal({
       setStep('back');
       stepRef.current = 'back';
 
-      warmupFramesRef.current = 45;
-      // Keep auto-capture locked for 2s so user has time to flip card
+      warmupFramesRef.current = 8;
+      // Keep auto-capture locked for 1.6s so user has time to flip card
       setTimeout(() => {
         isCapturingRef.current = false;
         autoCaptureCounterRef.current = 0;
-      }, 2000);
+      }, 1600);
 
-      toast.success('Front side captured! Now align and scan the back side.', {
+      toast.success('Front side captured! Now flip and scan the back side.', {
         toastId: 'id-card-step-toast'
       });
 
@@ -513,6 +528,8 @@ export default function IdCardScannerModal({
       } catch (err) {
         console.warn('Back OCR notice:', err);
       }
+    } else {
+      isCapturingRef.current = false;
     }
   };
 
@@ -559,7 +576,11 @@ export default function IdCardScannerModal({
       onClose();
     } catch (err) {
       setIsUploading(false);
-      toast.error(err.message || 'Failed to save student ID. Please try again.');
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to save student ID. Please try again.';
+      toast.error(errorMsg);
     }
   };
 
@@ -785,13 +806,6 @@ export default function IdCardScannerModal({
                           </button>
                         )}
 
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="p-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white backdrop-blur-md"
-                          title="Upload image from gallery"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                        </button>
                         <input
                           ref={fileInputRef}
                           type="file"

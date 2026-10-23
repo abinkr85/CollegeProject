@@ -81,8 +81,9 @@ export async function uploadStudentIdCard(payload) {
     isFormData = true;
   }
 
-  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
-  const { data } = await axiosInstance.post('/api/user/id-card', body, config);
+  // Do NOT manually set 'Content-Type': 'multipart/form-data' on FormData!
+  // Doing so omits the boundary parameter, which causes multipart parsers to reject the request with 400.
+  const { data } = await axiosInstance.post('/api/user/id-card', body);
   return unwrapEnvelope(data);
 }
 
