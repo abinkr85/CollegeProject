@@ -108,7 +108,8 @@ export default function IdCardScannerModal({
   const [step, setStep] = useState('front'); // 'front' | 'back' | 'review'
   const stepRef = useRef('front');
   const [orientation, setOrientation] = useState('vertical'); // 'vertical' | 'horizontal'
-  const [autoCapture, setAutoCapture] = useState(false); // Manual-first by default to prevent accidental auto-fires
+  const [autoCapture, setAutoCapture] = useState(true); // Auto camera scan active by default
+  const autoCaptureRef = useRef(true);
 
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
@@ -151,12 +152,18 @@ export default function IdCardScannerModal({
   const reticleRef = useRef(null);
 
   const autoCaptureCounterRef = useRef(0);
+  const warmupFramesRef = useRef(35); // 1.2s camera warmup to prevent premature capture
   const isCapturingRef = useRef(false);
 
   // Sync stepRef with step
   useEffect(() => {
     stepRef.current = step;
   }, [step]);
+
+  // Sync autoCaptureRef with autoCapture
+  useEffect(() => {
+    autoCaptureRef.current = autoCapture;
+  }, [autoCapture]);
 
   // Reset state on open
   useEffect(() => {
@@ -170,9 +177,11 @@ export default function IdCardScannerModal({
       setDepartmentInput(currentDepartment);
       setYearInput(currentYear);
       setExtractedData(null);
-      setAutoCapture(false);
+      setAutoCapture(true);
+      autoCaptureRef.current = true;
       setAutoCaptureProgress(0);
       autoCaptureCounterRef.current = 0;
+      warmupFramesRef.current = 35;
       isCapturingRef.current = false;
       startCamera();
     } else {
@@ -298,14 +307,21 @@ export default function IdCardScannerModal({
       const score = Math.min(100, Math.max(25, Math.round((sharpness / 45) * 100)));
       setClarityScore(score);
 
-      const steady = score >= 52;
+      // Allow camera to warm up and stabilize for 1.2s before auto-capture evaluates
+      if (warmupFramesRef.current > 0) {
+        warmupFramesRef.current -= 1;
+        animationFrameRef.current = requestAnimationFrame(loop);
+        return;
+      }
+
+      const steady = score >= 40;
       setIsSteady(steady);
 
-      // WhatsApp-style Auto Capture Logic (Only active when user explicitly enables autoCapture)
-      if (autoCapture && steady && !isCapturingRef.current && stepRef.current !== 'review') {
+      // WhatsApp-style Auto Capture Logic
+      if (autoCaptureRef.current && steady && !isCapturingRef.current && stepRef.current !== 'review') {
         autoCaptureCounterRef.current += 1;
-        // ~40 frames = ~1.8s of deliberate steady card alignment
-        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 40) * 100));
+        // ~28 frames = ~1.1s of deliberate steady card alignment
+        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 28) * 100));
         setAutoCaptureProgress(pct);
 
         if (pct >= 100) {
@@ -315,8 +331,9 @@ export default function IdCardScannerModal({
           takeSnapshot();
         }
       } else {
-        autoCaptureCounterRef.current = 0;
-        setAutoCaptureProgress(0);
+        autoCaptureCounterRef.current = Math.max(0, autoCaptureCounterRef.current - 1);
+        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 28) * 100));
+        setAutoCaptureProgress(pct);
       }
 
       animationFrameRef.current = requestAnimationFrame(loop);
@@ -432,11 +449,12 @@ export default function IdCardScannerModal({
       setStep('back');
       stepRef.current = 'back';
 
-      // Keep auto-capture locked for 2.5s so user has time to flip card
+      warmupFramesRef.current = 45;
+      // Keep auto-capture locked for 2s so user has time to flip card
       setTimeout(() => {
         isCapturingRef.current = false;
         autoCaptureCounterRef.current = 0;
-      }, 2500);
+      }, 2000);
 
       toast.success('Front side captured! Now align and scan the back side.', {
         toastId: 'id-card-step-toast'
@@ -731,7 +749,11 @@ export default function IdCardScannerModal({
                     <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-auto z-20 text-xs">
                       {/* Auto Capture Toggle */}
                       <button
-                        onClick={() => setAutoCapture(!autoCapture)}
+                        onClick={() => {
+                          const nextVal = !autoCapture;
+                          setAutoCapture(nextVal);
+                          autoCaptureRef.current = nextVal;
+                        }}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-semibold border transition ${
                           autoCapture
                             ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300'
