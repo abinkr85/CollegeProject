@@ -106,8 +106,9 @@ export default function IdCardScannerModal({
   currentYear = ''
 }) {
   const [step, setStep] = useState('front'); // 'front' | 'back' | 'review'
+  const stepRef = useRef('front');
   const [orientation, setOrientation] = useState('vertical'); // 'vertical' | 'horizontal'
-  const [autoCapture, setAutoCapture] = useState(true); // WhatsApp-style auto capture
+  const [autoCapture, setAutoCapture] = useState(false); // Manual-first by default to prevent accidental auto-fires
 
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
@@ -152,24 +153,36 @@ export default function IdCardScannerModal({
   const autoCaptureCounterRef = useRef(0);
   const isCapturingRef = useRef(false);
 
+  // Sync stepRef with step
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+
   // Reset state on open
   useEffect(() => {
     if (isOpen) {
+      toast.dismiss();
       setStep('front');
+      stepRef.current = 'front';
       setFrontImage(null);
       setBackImage(null);
       setStudentIdInput(currentStudentId);
       setDepartmentInput(currentDepartment);
       setYearInput(currentYear);
       setExtractedData(null);
+      setAutoCapture(false);
       setAutoCaptureProgress(0);
       autoCaptureCounterRef.current = 0;
       isCapturingRef.current = false;
       startCamera();
     } else {
       stopCamera();
+      toast.dismiss();
     }
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+      toast.dismiss();
+    };
   }, [isOpen]);
 
   // Discover camera devices
@@ -288,11 +301,11 @@ export default function IdCardScannerModal({
       const steady = score >= 52;
       setIsSteady(steady);
 
-      // WhatsApp-style Auto Capture Logic
-      if (autoCapture && steady && !isCapturingRef.current) {
+      // WhatsApp-style Auto Capture Logic (Only active when user explicitly enables autoCapture)
+      if (autoCapture && steady && !isCapturingRef.current && stepRef.current !== 'review') {
         autoCaptureCounterRef.current += 1;
-        // ~24 frames = ~1.2s of steady card alignment
-        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 24) * 100));
+        // ~40 frames = ~1.8s of deliberate steady card alignment
+        const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 40) * 100));
         setAutoCaptureProgress(pct);
 
         if (pct >= 100) {
@@ -317,6 +330,9 @@ export default function IdCardScannerModal({
    */
   const takeSnapshot = () => {
     if (!videoRef.current || !containerRef.current || !reticleRef.current) return;
+    if (isCapturingRef.current) return;
+    isCapturingRef.current = true;
+
     const video = videoRef.current;
 
     // Visual camera shutter flash & haptic feedback
@@ -359,7 +375,6 @@ export default function IdCardScannerModal({
 
     // Target canvas: Card dimensions only (Background completely removed!)
     const canvas = document.createElement('canvas');
-    // Normalize target resolution: e.g. 800 x 1264 for crisp OCR and clean UI
     const targetW = orientation === 'vertical' ? 760 : 1200;
     const targetH = orientation === 'vertical' ? 1200 : 760;
 
@@ -374,7 +389,7 @@ export default function IdCardScannerModal({
     try {
       const imgData = ctx.getImageData(0, 0, targetW, targetH);
       const d = imgData.data;
-      const contrast = 1.08; // subtle boost
+      const contrast = 1.08;
       const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
       for (let i = 0; i < d.length; i += 4) {
         d[i] = factor * (d[i] - 128) + 128;
@@ -385,7 +400,8 @@ export default function IdCardScannerModal({
     } catch (_) {}
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-    processCapturedImage(dataUrl, step);
+    const activeStep = stepRef.current;
+    processCapturedImage(dataUrl, activeStep);
   };
 
   // Shutter with optional 3-sec timer
@@ -409,11 +425,22 @@ export default function IdCardScannerModal({
 
   // Process captured image and run OCR pattern extraction
   const processCapturedImage = async (dataUrl, currentStep) => {
+    toast.dismiss();
+
     if (currentStep === 'front') {
       setFrontImage(dataUrl);
       setStep('back');
-      isCapturingRef.current = false;
-      toast.success('Front side captured! Now align and scan the back side.');
+      stepRef.current = 'back';
+
+      // Keep auto-capture locked for 2.5s so user has time to flip card
+      setTimeout(() => {
+        isCapturingRef.current = false;
+        autoCaptureCounterRef.current = 0;
+      }, 2500);
+
+      toast.success('Front side captured! Now align and scan the back side.', {
+        toastId: 'id-card-step-toast'
+      });
 
       // Run background OCR extraction on Front side (cropped card)
       setIsProcessingOcr(true);
@@ -450,9 +477,13 @@ export default function IdCardScannerModal({
     } else if (currentStep === 'back') {
       setBackImage(dataUrl);
       setStep('review');
+      stepRef.current = 'review';
       stopCamera();
       isCapturingRef.current = false;
-      toast.success('Both sides scanned! Please review details.');
+
+      toast.success('Both sides scanned! Please review details.', {
+        toastId: 'id-card-step-toast'
+      });
 
       // Run OCR on Back side to capture emergency contact / parent info
       try {
