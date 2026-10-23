@@ -20,3 +20,21 @@ export const revokeSessions = async (req, res) => {
   const result = await userService.revokeAllSessions(req.user.id)
   return ApiResponse.ok(res, result, result.message)
 }
+
+export const uploadIdCard = async (req, res) => {
+  const frontBuffer = req.files?.frontImage?.[0]?.buffer
+  const backBuffer = req.files?.backImage?.[0]?.buffer
+
+  const result = await userService.uploadIdCard(req.user.id, {
+    studentIdNumber: req.body.studentIdNumber,
+    frontBuffer,
+    backBuffer,
+    frontDataUrl: req.body.frontImage,
+    backDataUrl: req.body.backImage,
+    department: req.body.department,
+    year: req.body.year,
+  })
+
+  return ApiResponse.ok(res, result, 'Student ID card uploaded and verified successfully')
+}
+

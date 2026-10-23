@@ -1,65 +1,72 @@
 {
-  "trained_at": "2026-05-02T05:21:40.769275+00:00",
+  "trained_at": "2026-10-22T16:21:24.282657+00:00",
   "category_model": {
     "cv_f1_weighted": 1.0,
     "test_accuracy": 1.0,
     "classes": [
-      "Electricity",
-      "Furniture",
-      "Network",
+      "Administration",
+      "Cleaning",
+      "Electrical",
+      "IT",
+      "Maintenance",
       "Other",
-      "Sanitation",
-      "Water"
+      "Plumbing"
     ],
     "report": {
-      "Electricity": {
+      "Administration": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 40.0
+        "support": 17.0
       },
-      "Furniture": {
+      "Cleaning": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 40.0
+        "support": 20.0
       },
-      "Network": {
+      "Electrical": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 40.0
+        "support": 32.0
+      },
+      "IT": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 23.0
+      },
+      "Maintenance": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 21.0
       },
       "Other": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 40.0
+        "support": 6.0
       },
-      "Sanitation": {
+      "Plumbing": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 40.0
-      },
-      "Water": {
-        "precision": 1.0,
-        "recall": 1.0,
-        "f1-score": 1.0,
-        "support": 40.0
+        "support": 25.0
       },
       "accuracy": 1.0,
       "macro avg": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 240.0
+        "support": 144.0
       },
       "weighted avg": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 240.0
+        "support": 144.0
       }
     }
   },
@@ -76,32 +83,32 @@
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 60.0
+        "support": 42.0
       },
       "LOW": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 60.0
+        "support": 26.0
       },
       "MEDIUM": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 120.0
+        "support": 76.0
       },
       "accuracy": 1.0,
       "macro avg": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 240.0
+        "support": 144.0
       },
       "weighted avg": {
         "precision": 1.0,
         "recall": 1.0,
         "f1-score": 1.0,
-        "support": 240.0
+        "support": 144.0
       }
     }
   }

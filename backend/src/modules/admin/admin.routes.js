@@ -20,6 +20,10 @@ import {
   notificationIdParamSchema,
   adminUserIdParamSchema,
   adminUsersQuerySchema,
+  toggleSuperAdminSchema,
+  toggleBlockUserSchema,
+  toggleStudentDeletionPermissionSchema,
+  staffProfileUpdateSchema,
 } from './admin.schema.js'
 
 const router = Router()
@@ -28,6 +32,27 @@ router.use(authenticate, authorize('ADMIN'))
 
 router.get('/users', validate({ query: adminUsersQuerySchema }), asyncHandler(controller.listUsers))
 router.patch('/users/:id/unlock', validate({ params: adminUserIdParamSchema }), asyncHandler(controller.unlockUser))
+router.delete('/users/:id', validate({ params: adminUserIdParamSchema }), asyncHandler(controller.deleteUser))
+router.patch(
+  '/users/:id/super-admin',
+  validate({ params: adminUserIdParamSchema, body: toggleSuperAdminSchema }),
+  asyncHandler(controller.setSuperAdmin)
+)
+router.patch(
+  '/users/:id/block',
+  validate({ params: adminUserIdParamSchema, body: toggleBlockUserSchema }),
+  asyncHandler(controller.blockUser)
+)
+router.patch(
+  '/users/:id/permissions',
+  validate({ params: adminUserIdParamSchema, body: toggleStudentDeletionPermissionSchema }),
+  asyncHandler(controller.setStudentDeletionPermission)
+)
+router.patch(
+  '/users/:id/staff-profile',
+  validate({ params: adminUserIdParamSchema, body: staffProfileUpdateSchema }),
+  asyncHandler(controller.updateStaffProfile)
+)
 
 router.get('/complaints', validate({ query: adminComplaintQuerySchema }), asyncHandler(controller.getAll))
 router.get('/complaints/export', validate({ query: adminExportQuerySchema }), asyncHandler(controller.exportCSV))

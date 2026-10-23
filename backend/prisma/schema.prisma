@@ -30,10 +30,27 @@ model User {
   isSuperAdmin        Boolean           @default(false) @map("is_super_admin")
   notifications       Notification[]
   passwordResets      PasswordReset[]
+  batch               String?           @db.VarChar(50)
+  year                String?           @db.VarChar(50)
+  employeeId          String?           @map("employee_id") @db.VarChar(50)
+  joiningDate         DateTime?         @map("joining_date") @db.Timestamptz(6)
+  isBlocked           Boolean           @default(false) @map("is_blocked")
+  canDeleteStudents   Boolean           @default(false) @map("can_delete_students")
+  studentIdNumber     String?           @map("student_id_number") @db.VarChar(100)
+  idCardFrontUrl      String?           @map("id_card_front_url") @db.VarChar(500)
+  idCardBackUrl       String?           @map("id_card_back_url") @db.VarChar(500)
+  idCardStatus        String            @default("UNVERIFIED") @map("id_card_status") @db.VarChar(30)
+  idCardScannedAt     DateTime?         @map("id_card_scanned_at") @db.Timestamptz(6)
+  idCardVerifiedAt    DateTime?         @map("id_card_verified_at") @db.Timestamptz(6)
+  idCardRejectionReason String?         @map("id_card_rejection_reason")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
   @@index([lockedUntil], map: "idx_users_locked_until")
+  @@index([isBlocked], map: "idx_users_is_blocked")
+  @@index([employeeId], map: "idx_users_employee_id")
+  @@index([idCardStatus], map: "idx_users_id_card_status")
+  @@index([studentIdNumber], map: "idx_users_student_id_number")
   @@map("users")
 }
 

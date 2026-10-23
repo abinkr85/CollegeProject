@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getAllComplaints, updateComplaint, exportCSV } from '../../api/adminApi';
-import { Download, ListFilter } from 'lucide-react';
+import { Download } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 
 import ComplaintFilters from '../../components/admin/ComplaintFilters';
 import ComplaintTable from '../../components/admin/ComplaintTable';
@@ -8,19 +10,49 @@ import PaginationControls from '../../components/admin/PaginationControls';
 import ComplaintDetailPanel from '../../components/admin/ComplaintDetailPanel';
 
 export default function ComplaintManagement() {
+  const [searchParams] = useSearchParams();
+  const { accessToken } = useAuth();
+
   // --- State ---
   const [data, setData] = useState({ complaints: [], totalCount: 0, totalPages: 1 });
   const [isLoading, setIsLoading] = useState(true);
   
-  // Filter state (drives the API fetch)
-  const [filters, setFilters] = useState({
-    search: '',
-    status: '',
-    priority: '',
-    category: '',
-    page: 1,
+  // Filter state (drives the API fetch, initialized from URL search params if present)
+  const [filters, setFilters] = useState(() => ({
+    search: searchParams.get('search') || '',
+    status: searchParams.get('status') || '',
+    priority: searchParams.get('priority') || '',
+    category: searchParams.get('category') || '',
+    page: Number(searchParams.get('page')) || 1,
     limit: 10
-  });
+  }));
+
+  // Sync state if URL query params change while mounted
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') ?? '';
+    const urlStatus = searchParams.get('status') ?? '';
+    const urlPriority = searchParams.get('priority') ?? '';
+    const urlCategory = searchParams.get('category') ?? '';
+
+    setFilters(prev => {
+      if (
+        prev.search === urlSearch &&
+        prev.status === urlStatus &&
+        prev.priority === urlPriority &&
+        prev.category === urlCategory
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        search: urlSearch,
+        status: urlStatus,
+        priority: urlPriority,
+        category: urlCategory,
+        page: 1
+      };
+    });
+  }, [searchParams]);
 
   // Selected complaint for the detail panel
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -51,6 +83,33 @@ export default function ComplaintManagement() {
   useEffect(() => {
     loadComplaints();
   }, [filters, loadComplaints]);
+
+  // Subscribe to real-time events via SSE
+  useEffect(() => {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const sseUrl = `${baseUrl}/api/realtime/admin${accessToken ? `?token=${accessToken}` : ''}`;
+    const eventSource = new EventSource(sseUrl, { withCredentials: true });
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'COMPLAINT_CREATED' || data.type === 'COMPLAINT_UPDATED') {
+          loadComplaints();
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE event in ComplaintManagement:', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('SSE connection error in ComplaintManagement:', err);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [accessToken, loadComplaints]);
 
   // --- Handlers ---
   function handlePageChange(newPage) {
@@ -104,35 +163,29 @@ export default function ComplaintManagement() {
       </div>
 
       {/* Filters Area */}
-      <div className="bg-white rounded-2xl border border-outline-variant/60 shadow-sm p-4 relative">
-        <div className="absolute top-4 left-4 flex items-center gap-1.5 text-xs font-bold text-[#0a1422] uppercase tracking-wider mb-2">
-          <ListFilter size={14} />
-          <span>Filters & Search</span>
-        </div>
-        <div className="pt-6">
-          <ComplaintFilters
-            filters={filters}
-            setFilters={setFilters}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
+      <ComplaintFilters
+        filters={filters}
+        setFilters={setFilters}
+        isLoading={isLoading}
+      />
 
       {/* Main Table Area */}
-      <div className="flex flex-col space-y-3 bg-white rounded-2xl border border-outline-variant/60 shadow-sm overflow-hidden p-4">
+      <div className="flex flex-col bg-white rounded-2xl border border-outline-variant/60 shadow-xs overflow-hidden">
         <ComplaintTable
           complaints={data.complaints}
           isLoading={isLoading}
           onRowClick={handleRowClick}
           isFiltered={isFiltered}
         />
-        <PaginationControls
-          currentPage={filters.page}
-          totalPages={data.totalPages}
-          totalCount={data.totalCount}
-          onPageChange={handlePageChange}
-          isLoading={isLoading}
-        />
+        <div className="border-t border-gray-100 p-3 sm:px-4 bg-gray-50/50">
+          <PaginationControls
+            currentPage={filters.page}
+            totalPages={data.totalPages}
+            totalCount={data.totalCount}
+            onPageChange={handlePageChange}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
 
       {/* Slide-over Detail Panel */}

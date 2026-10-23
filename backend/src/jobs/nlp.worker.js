@@ -19,7 +19,7 @@ const nlpRequestOptions = () => ({
 export const nlpWorker = new Worker(
   'nlp',
   async (job) => {
-    const { complaintId, text } = job.data
+    const { complaintId, text, manualCategory } = job.data
 
     let classification = classifyComplaintText(text)
 
@@ -40,9 +40,9 @@ export const nlpWorker = new Worker(
         id: complaintId,
       },
       data: {
-        category: classification.category,
+        ...(manualCategory ? {} : { category: classification.category }),
         priority: classification.priority,
-        nlpConfidence: classification.confidence,
+        nlpConfidence: manualCategory ? 1.0 : classification.confidence,
       },
       include: {
         user: {

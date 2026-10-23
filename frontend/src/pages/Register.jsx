@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { z } from 'zod';
-import { registerUser } from '../api/authApi';
 import { useAuth } from '../hooks/useAuth';
 import { PORTAL_HOME_PATH, PORTAL_LOGIN_PATH, PORTAL_ROLE, PORTAL_ROLE_LABEL } from '../portalConfig';
 import Button from '../components/ui/Button';
@@ -75,9 +74,9 @@ export default function Register() {
     <main className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-[440px]">
         <section className="bg-surface-container-lowest rounded-2xl p-10 shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-outline-variant text-center">
-          <h1 className="font-display-sm text-display-sm text-primary font-bold">{PORTAL_ROLE_LABEL} Register</h1>
+          <h1 className="font-display-sm text-display-sm text-primary font-bold">Create {PORTAL_ROLE_LABEL} Account</h1>
           <p className="mt-2 font-body-md text-body-md text-on-surface-variant max-w-[280px] mx-auto">
-            Create a dedicated {PORTAL_ROLE} account for this portal.
+            Sign up with your college email to get started.
           </p>
 
           <form className="mt-8 space-y-5 text-left" onSubmit={handleSubmit(onSubmit)}>

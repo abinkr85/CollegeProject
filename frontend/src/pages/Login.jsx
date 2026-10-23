@@ -144,7 +144,7 @@ export default function Login() {
             <>
               <h1 className="font-display-sm text-display-sm text-primary font-bold">{PORTAL_ROLE_LABEL} Login</h1>
               <p className="mt-2 font-body-md text-body-md text-on-surface-variant max-w-[280px] mx-auto">
-                Sign in through the dedicated {PORTAL_ROLE} portal for access.
+                Sign in with your registered college account.
               </p>
 
               <form className="mt-8 space-y-5 text-left" onSubmit={handleSubmit(onSubmit)}>
@@ -187,9 +187,9 @@ export default function Login() {
               </form>
 
               <p className="mt-8 font-body-sm text-body-sm text-on-surface-variant">
-                Need a {PORTAL_ROLE} account?{' '}
+                Don't have an account?{' '}
                 <Link to="/register" className="font-semibold text-primary hover:text-secondary transition-colors">
-                  Register
+                  Sign up
                 </Link>
               </p>
             </>

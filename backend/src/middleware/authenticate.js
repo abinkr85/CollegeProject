@@ -31,6 +31,8 @@ export const authenticate = async (req, res, next) => {
       name: decoded.name,
       email: decoded.email,
       role: decoded.role,
+      isSuperAdmin: Boolean(decoded.isSuperAdmin),
+      canDeleteStudents: Boolean(decoded.canDeleteStudents),
     }
     req.token = token
 

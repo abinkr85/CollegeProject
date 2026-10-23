@@ -61,8 +61,18 @@ export default function AdminNavbar({ onMenuOpen }) {
       }
     }
 
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsNotificationsOpen(false);
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   async function handleNotificationClick(notification) {

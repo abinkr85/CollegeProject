@@ -42,7 +42,7 @@ export default function StudentDashboard() {
               Welcome back, {displayName}
             </h1>
             <p className="font-body-lg text-body-lg text-secondary-fixed-dim/90 max-w-xl">
-              Track your complaints, latest updates, and resolution progress in one place.
+              Track your complaints and status updates in one place.
             </p>
           </div>
           <button
@@ -57,21 +57,21 @@ export default function StudentDashboard() {
         {/* Metrics Grid */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-gutter" aria-label="Complaints summary statistics">
           {/* Card: Total */}
-          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 flex flex-col justify-between h-[150px] hover:shadow-md hover:border-outline transition-all duration-300 group">
-            <div className="flex justify-between items-start">
+          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 flex flex-col justify-between min-h-[150px] hover:shadow-md hover:border-outline transition-all duration-300 group">
+            <div className="flex justify-between items-start gap-3">
               <div className="space-y-1">
                 <span className="font-body-md text-body-md text-on-surface-variant font-medium block">
-                  Total Complaints
+                  Total Filed
                 </span>
                 <span className="text-[11px] text-outline font-semibold uppercase tracking-wider block">
-                  All complaints you have submitted.
+                  Total complaints submitted by you.
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
+              <div className="w-12 h-12 flex-shrink-0 rounded-xl bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
                 <FolderOpen size={22} />
               </div>
             </div>
-            <div>
+            <div className="mt-4">
               <h2 className="font-display-lg text-display-lg text-primary leading-none font-bold">
                 {total}
               </h2>
@@ -79,21 +79,21 @@ export default function StudentDashboard() {
           </div>
 
           {/* Card: Pending */}
-          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 flex flex-col justify-between h-[150px] hover:shadow-md hover:border-outline transition-all duration-300 group">
-            <div className="flex justify-between items-start">
+          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 flex flex-col justify-between min-h-[150px] hover:shadow-md hover:border-outline transition-all duration-300 group">
+            <div className="flex justify-between items-start gap-3">
               <div className="space-y-1">
                 <span className="font-body-md text-body-md text-on-surface-variant font-medium block">
-                  Pending
+                  In Progress
                 </span>
                 <span className="text-[11px] text-outline font-semibold uppercase tracking-wider block">
-                  Complaints waiting for admin review or action.
+                  Complaints under review or being worked on.
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-error-container text-on-error-container flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
+              <div className="w-12 h-12 flex-shrink-0 rounded-xl bg-error-container text-on-error-container flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
                 <Clock size={22} />
               </div>
             </div>
-            <div>
+            <div className="mt-4">
               <h2 className="font-display-lg text-display-lg text-primary leading-none font-bold">
                 {pending}
               </h2>
@@ -101,21 +101,21 @@ export default function StudentDashboard() {
           </div>
 
           {/* Card: Resolved */}
-          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 flex flex-col justify-between h-[150px] hover:shadow-md hover:border-outline transition-all duration-300 group">
-            <div className="flex justify-between items-start">
+          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 flex flex-col justify-between min-h-[150px] hover:shadow-md hover:border-outline transition-all duration-300 group">
+            <div className="flex justify-between items-start gap-3">
               <div className="space-y-1">
                 <span className="font-body-md text-body-md text-on-surface-variant font-medium block">
                   Resolved
                 </span>
                 <span className="text-[11px] text-outline font-semibold uppercase tracking-wider block">
-                  Complaints marked as solved by the admin team.
+                  Complaints marked as solved.
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
+              <div className="w-12 h-12 flex-shrink-0 rounded-xl bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm">
                 <CheckCircle2 size={22} />
               </div>
             </div>
-            <div>
+            <div className="mt-4">
               <h2 className="font-display-lg text-display-lg text-primary leading-none font-bold">
                 {resolved}
               </h2>
@@ -143,10 +143,10 @@ export default function StudentDashboard() {
                 <Inbox size={36} strokeWidth={1.5} />
               </div>
               <h3 className="font-headline-sm text-headline-sm text-primary mb-2 font-bold">
-                No complaints submitted yet.
+                No complaints yet.
               </h3>
               <p className="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto mb-6">
-                Submit your first complaint so the admin team can review and take action.
+                Facing an issue on campus? Click below to file your first complaint.
               </p>
               <button
                 onClick={() => navigate('/submit')}

@@ -102,3 +102,28 @@ export const unlockUser = async (req, res) => {
   const result = await adminService.unlockUser(req.params.id)
   return ApiResponse.ok(res, result, 'User account unlocked successfully')
 }
+
+export const deleteUser = async (req, res) => {
+  const result = await adminService.deleteUser(req.user.id, req.params.id)
+  return ApiResponse.ok(res, result, 'User removed successfully')
+}
+
+export const setSuperAdmin = async (req, res) => {
+  const result = await adminService.updateSuperAdminStatus(req.user.id, req.params.id, req.body.isSuperAdmin)
+  return ApiResponse.ok(res, result, `Super Administrator privilege ${req.body.isSuperAdmin ? 'granted' : 'revoked'}`)
+}
+
+export const blockUser = async (req, res) => {
+  const result = await adminService.blockUser(req.user.id, req.params.id, req.body.isBlocked)
+  return ApiResponse.ok(res, result, `User account ${req.body.isBlocked ? 'blocked' : 'unblocked'} successfully`)
+}
+
+export const setStudentDeletionPermission = async (req, res) => {
+  const result = await adminService.updateStudentDeletionPermission(req.user.id, req.params.id, req.body.canDeleteStudents)
+  return ApiResponse.ok(res, result, `Student deletion permission ${req.body.canDeleteStudents ? 'granted' : 'revoked'}`)
+}
+
+export const updateStaffProfile = async (req, res) => {
+  const result = await adminService.updateStaffProfile(req.user.id, req.params.id, req.body)
+  return ApiResponse.ok(res, result, 'Staff profile updated successfully')
+}

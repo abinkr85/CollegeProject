@@ -23,3 +23,11 @@ export async function revokeAllSessions() {
   const { data } = await axiosInstance.post('/api/user/revoke-sessions');
   return unwrapEnvelope(data);
 }
+
+export async function uploadStudentIdCard(payload) {
+  const isFormData = payload instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const { data } = await axiosInstance.post('/api/user/id-card', payload, config);
+  return unwrapEnvelope(data);
+}
+

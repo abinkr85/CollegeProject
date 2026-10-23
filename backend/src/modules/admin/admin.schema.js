@@ -29,11 +29,13 @@ export const adminExportQuerySchema = adminComplaintQuerySchema.omit({
 
 export const updateComplaintSchema = z.object({
   status: statusSchema,
+  priority: prioritySchema.optional(),
   department: z.string().trim().min(1).max(100).optional().nullable(),
   adminNote: z.string().trim().max(2000).optional().nullable(),
   admin_note: z.string().trim().max(2000).optional().nullable(),
 }).transform(value => ({
   status: value.status,
+  priority: value.priority,
   department: value.department,
   adminNote: value.adminNote ?? value.admin_note ?? null,
 }))
@@ -85,4 +87,22 @@ export const adminUsersQuerySchema = paginationSchema.extend({
   role: enumFromString(['STUDENT', 'ADMIN']).optional(),
   department: z.string().trim().min(1).max(100).optional(),
   status: z.enum(['all', 'active', 'locked']).optional().default('all'),
+})
+
+export const toggleSuperAdminSchema = z.object({
+  isSuperAdmin: z.boolean(),
+})
+
+export const toggleBlockUserSchema = z.object({
+  isBlocked: z.boolean(),
+})
+
+export const toggleStudentDeletionPermissionSchema = z.object({
+  canDeleteStudents: z.boolean(),
+})
+
+export const staffProfileUpdateSchema = z.object({
+  employeeId: z.string().trim().max(50).nullable().optional(),
+  joiningDate: z.string().nullable().optional(),
+  department: z.string().trim().max(100).nullable().optional(),
 })

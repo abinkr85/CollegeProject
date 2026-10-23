@@ -42,6 +42,14 @@ const buildWhereClause = ({ category, priority, status, department, search } = {
           },
         },
       },
+      {
+        user: {
+          name: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+      },
     ]
   }
 
@@ -52,6 +60,10 @@ const USER_SELECT = {
   id: true,
   name: true,
   email: true,
+  studentIdNumber: true,
+  idCardStatus: true,
+  idCardFrontUrl: true,
+  idCardBackUrl: true,
 }
 
 export const findComplaints = async (filters, { page, limit }) => {
@@ -250,7 +262,7 @@ export const findUsers = async (filters, { page, limit }) => {
     ]
   }
 
-  const [users, total, totalStudents, totalLocked] = await prisma.$transaction([
+  const [users, total, totalUsers, totalStudents, totalLocked, totalAdmins, totalSuperAdmins] = await prisma.$transaction([
     prisma.user.findMany({
       where,
       ...getPrismaSkipTake({ page, limit }),
@@ -261,9 +273,22 @@ export const findUsers = async (filters, { page, limit }) => {
         email: true,
         role: true,
         department: true,
+        isSuperAdmin: true,
+        canDeleteStudents: true,
+        batch: true,
+        year: true,
+        employeeId: true,
+        joiningDate: true,
+        isBlocked: true,
         createdAt: true,
         loginFailedAttempts: true,
         lockedUntil: true,
+        studentIdNumber: true,
+        idCardStatus: true,
+        idCardFrontUrl: true,
+        idCardBackUrl: true,
+        idCardScannedAt: true,
+        idCardVerifiedAt: true,
         _count: {
           select: {
             complaints: true,
@@ -277,8 +302,11 @@ export const findUsers = async (filters, { page, limit }) => {
       },
     }),
     prisma.user.count({ where }),
+    prisma.user.count(),
     prisma.user.count({ where: { role: 'STUDENT' } }),
     prisma.user.count({ where: { lockedUntil: { gt: now } } }),
+    prisma.user.count({ where: { role: 'ADMIN' } }),
+    prisma.user.count({ where: { role: 'ADMIN', isSuperAdmin: true } }),
   ])
 
   const formattedUsers = users.map((u) => {
@@ -295,7 +323,14 @@ export const findUsers = async (filters, { page, limit }) => {
       name: u.name,
       email: u.email,
       role: u.role,
+      isSuperAdmin: Boolean(u.isSuperAdmin),
+      canDeleteStudents: Boolean(u.canDeleteStudents),
       department: u.department,
+      batch: u.batch,
+      year: u.year,
+      employeeId: u.employeeId,
+      joiningDate: u.joiningDate,
+      isBlocked: Boolean(u.isBlocked),
       createdAt: u.createdAt,
       loginFailedAttempts: u.loginFailedAttempts,
       lockedUntil: u.lockedUntil,
@@ -309,9 +344,12 @@ export const findUsers = async (filters, { page, limit }) => {
     users: formattedUsers,
     total,
     metrics: {
+      totalUsers,
       totalStudents,
       totalLocked,
       activeStudents: Math.max(0, totalStudents - totalLocked),
+      totalAdmins,
+      totalSuperAdmins,
     },
   }
 }
@@ -331,3 +369,82 @@ export const unlockUserById = (id) =>
       loginFailedAttempts: true,
     },
   })
+
+export const deleteUserById = async (id) => {
+  return prisma.$transaction(async (tx) => {
+    // Nullify any admin references in complaint_logs to prevent FK constraint violation
+    await tx.complaintLog.updateMany({
+      where: { changedBy: id },
+      data: { changedBy: null },
+    })
+    // Delete user (Prisma cascade handles complaints, tokens, mfa challenges, notes, etc.)
+    return tx.user.delete({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isSuperAdmin: true,
+      },
+    })
+  })
+}
+
+export const setSuperAdminStatus = (id, isSuperAdmin) =>
+  prisma.user.update({
+    where: { id },
+    data: { isSuperAdmin },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isSuperAdmin: true,
+    },
+  })
+
+export const setUserBlockedStatus = (id, isBlocked) =>
+  prisma.user.update({
+    where: { id },
+    data: { isBlocked },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isBlocked: true,
+    },
+  })
+
+export const setAdminStudentDeletionPermission = (id, canDeleteStudents) =>
+  prisma.user.update({
+    where: { id },
+    data: { canDeleteStudents },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      canDeleteStudents: true,
+    },
+  })
+
+export const updateStaffProfileById = (id, data) =>
+  prisma.user.update({
+    where: { id },
+    data: {
+      ...(data.employeeId !== undefined ? { employeeId: data.employeeId || null } : {}),
+      ...(data.joiningDate !== undefined ? { joiningDate: data.joiningDate ? new Date(data.joiningDate) : null } : {}),
+      ...(data.department !== undefined ? { department: data.department || null } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      department: true,
+      employeeId: true,
+      joiningDate: true,
+    },
+  })
+

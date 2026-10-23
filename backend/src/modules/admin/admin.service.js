@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js'
 import { streamToCSV } from '../../utils/csvExport.js'
 import { notifyStudentPublicUpdate, notifyStudentStatusUpdate } from '../notification/notification.service.js'
 import { broadcastAdminEvent } from '../realtime/realtime.service.js'
+import { revokeAllUserTokens } from '../auth/token.service.js'
 
 const cacheKeyForList = (filters, pagination) =>
   `admin:complaints:${JSON.stringify({
@@ -43,17 +44,24 @@ export const updateComplaint = async (id, adminId, dto) => {
 
   const updateData = {
     status: dto.status,
+    ...(dto.priority ? { priority: dto.priority } : {}),
     department: dto.department ?? null,
     adminNote: dto.adminNote ?? null,
     resolvedAt: dto.status === 'RESOLVED' ? complaint.resolvedAt ?? new Date() : null,
   }
+
+  const logNote = dto.adminNote ?? (
+    dto.priority && dto.priority !== complaint.priority
+      ? `Status: ${dto.status}, Priority updated to ${dto.priority}`
+      : 'Complaint updated by admin'
+  )
 
   const updated = await repo.updateComplaintAndLog(id, updateData, {
     complaintId: id,
     changedBy: adminId,
     oldStatus,
     newStatus: dto.status,
-    note: dto.adminNote ?? 'Complaint updated by admin',
+    note: logNote,
     isInternal: false,
   })
 
@@ -400,5 +408,167 @@ export const unlockUser = async (userId) => {
 
   const updated = await repo.unlockUserById(userId)
   logger.info({ userId }, 'Admin unlocked user account')
+  return updated
+}
+
+export const deleteUser = async (actingUserId, targetUserId) => {
+  const actingUser = await repo.findUserById(actingUserId)
+  if (!actingUser) {
+    throw new NotFoundError('Acting admin not found')
+  }
+
+  if (actingUserId === targetUserId) {
+    throw new BadRequestError('Administrators cannot delete their own account')
+  }
+
+  const targetUser = await repo.findUserById(targetUserId)
+  if (!targetUser) {
+    throw new NotFoundError('User not found')
+  }
+
+  // Super Admin can delete anyone (except self).
+  // Regular Admins can ONLY delete STUDENT accounts IF actingUser.canDeleteStudents is true.
+  if (actingUser.isSuperAdmin) {
+    // Authorized
+  } else if (actingUser.canDeleteStudents && targetUser.role === 'STUDENT') {
+    // Authorized to delete student account
+  } else {
+    throw new ForbiddenError('You do not have permission to remove this user account')
+  }
+
+  const deleted = await repo.deleteUserById(targetUserId)
+  logger.info(
+    { targetUserId, targetEmail: targetUser.email, targetRole: targetUser.role, removedBy: actingUser.email },
+    'User removed from system'
+  )
+
+  Promise.allSettled([
+    invalidateCachePattern('admin:users:*'),
+    invalidateCachePattern('analytics:*'),
+    invalidateCachePattern(`complaints:user:${targetUserId}:*`),
+    invalidateCachePattern('admin:complaints:*'),
+    broadcastAdminEvent('USER_DELETED', { userId: targetUserId, email: targetUser.email }),
+  ])
+
+  return deleted
+}
+
+export const blockUser = async (actingUserId, targetUserId, isBlocked) => {
+  const actingUser = await repo.findUserById(actingUserId)
+  if (!actingUser || !actingUser.isSuperAdmin) {
+    throw new ForbiddenError('Only Super Administrators can block or unblock accounts')
+  }
+  if (actingUserId === targetUserId) {
+    throw new BadRequestError('Super Administrators cannot block their own account')
+  }
+
+  const targetUser = await repo.findUserById(targetUserId)
+  if (!targetUser) {
+    throw new NotFoundError('User not found')
+  }
+
+  const updated = await repo.setUserBlockedStatus(targetUserId, isBlocked)
+  if (isBlocked) {
+    await revokeAllUserTokens(targetUserId)
+  }
+
+  logger.info(
+    { actingUserId, targetUserId, isBlocked, targetEmail: targetUser.email },
+    'User account blocked status updated'
+  )
+
+  Promise.allSettled([
+    invalidateCachePattern('admin:users:*'),
+    broadcastAdminEvent('USER_UPDATED', { userId: targetUserId, isBlocked }),
+  ])
+
+  return updated
+}
+
+export const updateStudentDeletionPermission = async (actingUserId, targetUserId, canDeleteStudents) => {
+  const actingUser = await repo.findUserById(actingUserId)
+  if (!actingUser || !actingUser.isSuperAdmin) {
+    throw new ForbiddenError('Only Super Administrators can grant or revoke student removal permissions')
+  }
+
+  const targetUser = await repo.findUserById(targetUserId)
+  if (!targetUser) {
+    throw new NotFoundError('User not found')
+  }
+  if (targetUser.role !== 'ADMIN') {
+    throw new BadRequestError('Student removal permissions can only be granted to Administrators')
+  }
+
+  const updated = await repo.setAdminStudentDeletionPermission(targetUserId, canDeleteStudents)
+  logger.info(
+    { actingUserId, targetUserId, canDeleteStudents, targetEmail: targetUser.email },
+    'Admin student deletion permission updated'
+  )
+
+  Promise.allSettled([
+    invalidateCachePattern('admin:users:*'),
+    broadcastAdminEvent('USER_UPDATED', { userId: targetUserId, canDeleteStudents }),
+  ])
+
+  return updated
+}
+
+export const updateStaffProfile = async (actingUserId, targetUserId, data) => {
+  const actingUser = await repo.findUserById(actingUserId)
+  if (!actingUser) {
+    throw new NotFoundError('Acting admin not found')
+  }
+
+  if (!actingUser.isSuperAdmin && actingUserId !== targetUserId) {
+    throw new ForbiddenError('You can only update your own staff profile unless you are a Super Administrator')
+  }
+
+  const targetUser = await repo.findUserById(targetUserId)
+  if (!targetUser) {
+    throw new NotFoundError('User not found')
+  }
+
+  const updated = await repo.updateStaffProfileById(targetUserId, data)
+  logger.info({ actingUserId, targetUserId, data }, 'Staff profile details updated')
+
+  Promise.allSettled([
+    invalidateCachePattern('admin:users:*'),
+    broadcastAdminEvent('USER_UPDATED', { userId: targetUserId }),
+  ])
+
+  return updated
+}
+
+export const updateSuperAdminStatus = async (actingUserId, targetUserId, isSuperAdmin) => {
+  const actingUser = await repo.findUserById(actingUserId)
+  if (!actingUser) {
+    throw new NotFoundError('Acting admin not found')
+  }
+  if (!actingUser.isSuperAdmin) {
+    throw new ForbiddenError('Only Super Administrators can modify Super Administrator privileges')
+  }
+  if (actingUserId === targetUserId && !isSuperAdmin) {
+    throw new BadRequestError('Super Administrators cannot remove their own Super Administrator status')
+  }
+
+  const targetUser = await repo.findUserById(targetUserId)
+  if (!targetUser) {
+    throw new NotFoundError('User not found')
+  }
+  if (targetUser.role !== 'ADMIN') {
+    throw new BadRequestError('Super Administrator privileges can only be assigned to Administrators')
+  }
+
+  const updated = await repo.setSuperAdminStatus(targetUserId, isSuperAdmin)
+  logger.info(
+    { targetUserId, targetEmail: targetUser.email, isSuperAdmin, modifiedBy: actingUser.email },
+    'Super Administrator privilege updated'
+  )
+
+  Promise.allSettled([
+    invalidateCachePattern('admin:users:*'),
+    broadcastAdminEvent('USER_UPDATED', { userId: targetUserId, isSuperAdmin }),
+  ])
+
   return updated
 }

@@ -39,13 +39,33 @@ CATEGORY_KEYWORDS = [
             "wire",
             "wiring",
             "switch",
+            "switchboard",
             "socket",
             "outlet",
             "breaker",
+            "mcb",
+            "inverter",
+            "generator",
             "voltage",
+            "voltage fluctuation",
             "light",
+            "tube light",
+            "tubelight",
+            "bulb",
+            "led",
             "fan",
+            "ceiling fan",
+            "regulator",
             "ac",
+            "air conditioner",
+            "cooling",
+            "geyser",
+            "immersion rod",
+            "plug point",
+            "extension box",
+            "fuse",
+            "flickering",
+            "blackout",
         },
     ),
     (
@@ -56,22 +76,38 @@ CATEGORY_KEYWORDS = [
             "water not coming",
             "drinking water",
             "water cooler",
+            "purifier",
+            "ro water",
+            "ro purifier",
             "tap",
             "pipe",
             "leak",
             "leaking",
+            "leakage",
             "burst pipe",
+            "burst",
             "flood",
             "flooding",
             "overflow",
             "drain",
-            "toilet",
-            "bathroom",
-            "washroom",
+            "drainage",
+            "choke",
+            "choked",
+            "clog",
+            "clogged",
             "flush",
-            "sink",
+            "flush tank",
+            "commode",
+            "urinal",
             "sewer",
             "sewage",
+            "faucet",
+            "health faucet",
+            "shower",
+            "pipeline",
+            "overhead tank",
+            "washbasin",
+            "wash basin",
         },
     ),
     (
@@ -84,6 +120,7 @@ CATEGORY_KEYWORDS = [
             "server",
             "login",
             "portal",
+            "student portal",
             "website",
             "app",
             "software",
@@ -92,28 +129,62 @@ CATEGORY_KEYWORDS = [
             "lab pc",
             "printer",
             "projector",
+            "hdmi",
             "rfid",
+            "biometric",
+            "attendance machine",
             "system error",
             "password",
+            "lan",
+            "ethernet",
+            "blue screen",
+            "keyboard",
+            "mouse",
+            "monitor",
+            "display",
+            "scanner",
+            "mac address",
+            "captive portal",
         },
     ),
     (
         "Cleaning",
         {
             "cleaning",
+            "clean",
             "dirty",
             "garbage",
             "trash",
             "waste",
             "dustbin",
             "smell",
+            "stink",
+            "stinking",
             "odor",
             "odour",
             "hygiene",
             "sanitation",
+            "sanitary",
+            "pad",
+            "napkin",
             "mosquito",
             "pest",
+            "rat",
+            "cockroach",
             "graffiti",
+            "sweep",
+            "sweeping",
+            "mop",
+            "mopping",
+            "spill",
+            "spilled",
+            "algae",
+            "fungus",
+            "mold",
+            "scrub",
+            "scrubbing",
+            "dust",
+            "unhygienic",
         },
     ),
     (
@@ -130,14 +201,35 @@ CATEGORY_KEYWORDS = [
             "door",
             "window",
             "lock",
+            "latch",
+            "handle",
+            "hinge",
+            "key",
             "ceiling",
             "roof",
             "wall",
             "floor",
+            "tile",
             "lift",
             "elevator",
-            "classroom",
+            "staircase",
+            "stairs",
+            "handrail",
+            "railing",
+            "step",
+            "cracked",
+            "plaster",
+            "seepage",
+            "dampness",
+            "peeling",
+            "whiteboard",
+            "blackboard",
+            "podium",
+            "locker",
             "infrastructure",
+            "gate",
+            "cupboard",
+            "almirah",
         },
     ),
     (
@@ -145,22 +237,41 @@ CATEGORY_KEYWORDS = [
         {
             "fee",
             "fees",
+            "fee receipt",
+            "receipt",
             "scholarship",
             "certificate",
+            "bonafide",
             "exam",
+            "examination",
             "timetable",
+            "schedule",
             "attendance",
+            "hall ticket",
+            "admit card",
             "id card",
-            "canteen",
-            "cafeteria",
-            "food",
-            "office",
-            "document",
+            "identity card",
+            "bus pass",
+            "transport bus",
+            "food quality",
+            "mess food",
+            "canteen food",
+            "document verification",
             "admission",
-            "library",
+            "library card",
+            "library fine",
+            "book return",
+            "fine",
+            "warden",
+            "hostel fee",
         },
     ),
 ]
+
+SAFETY_CRITICAL_CATEGORY_KEYWORDS = {
+    "Electrical": {"fire", "smoke", "short circuit", "electric shock", "electrocution", "exposed wire"},
+    "Plumbing": {"burst pipe", "sewage leak", "gas leak"},
+}
 
 HIGH_KEYWORDS = {
     "fire",
@@ -227,11 +338,13 @@ def _matches_any(text_lower: str, keywords: set[str]) -> bool:
     return any(_contains_keyword(text_lower, keyword) for keyword in keywords)
 
 
-def _keyword_category(text_lower: str) -> str | None:
+def _keyword_category_scores(text_lower: str) -> dict[str, int]:
+    scores = {}
     for category, keywords in CATEGORY_KEYWORDS:
-        if _matches_any(text_lower, keywords):
-            return category
-    return None
+        count = sum(1 for kw in keywords if _contains_keyword(text_lower, kw))
+        if count > 0:
+            scores[category] = count
+    return scores
 
 
 def _canonical_category(category: str) -> str:
@@ -307,13 +420,28 @@ class Predictor:
         priority = self.pri_encoder.inverse_transform([pri_idx])[0]
 
         override_applied = False
-        keyword_category = _keyword_category(text_lower)
 
-        if keyword_category and keyword_category != category:
-            category = keyword_category
-            cat_conf = 0.95
+        # 1. Check safety critical category override
+        safety_override = None
+        for cat, kws in SAFETY_CRITICAL_CATEGORY_KEYWORDS.items():
+            if _matches_any(text_lower, kws):
+                safety_override = cat
+                break
+
+        if safety_override and safety_override != category:
+            category = safety_override
+            cat_conf = 0.98
             override_applied = True
+        elif cat_conf < 0.55:
+            scores = _keyword_category_scores(text_lower)
+            if scores:
+                best_kw_cat = max(scores.items(), key=lambda item: item[1])[0]
+                if best_kw_cat != category:
+                    category = best_kw_cat
+                    cat_conf = 0.85
+                    override_applied = True
 
+        # 2. Priority rules
         keyword_priority = _keyword_priority(text_lower)
 
         if keyword_priority == "HIGH":
@@ -346,53 +474,37 @@ class Predictor:
 
         clean = clean_text(text)
 
-        vectorizer = self.cat_pipeline.named_steps["tfidf"]
-        clf = self.cat_pipeline.named_steps["clf"]
-
-        tfidf_vector = vectorizer.transform([clean])
-        feature_names = vectorizer.get_feature_names_out()
-        coef = clf.coef_
-
-        cat_proba = self.cat_pipeline.predict_proba([clean])[0]
-        cat_idx = int(np.argmax(cat_proba))
-        category = _canonical_category(self.cat_encoder.inverse_transform([cat_idx])[0])
-
         try:
-            import eli5
+            vectorizer = self.cat_pipeline.named_steps["tfidf"]
+            clf = self.cat_pipeline.named_steps["clf"]
 
-            explanation = eli5.explain_prediction(clf, clean, vec=vectorizer, top=n, target=cat_idx)
-            target = explanation.targets[0]
-            top_features = [
-                {
-                    "feature": weight.feature,
-                    "score": round(float(weight.weight), 4),
-                }
-                for weight in target.feature_weights.pos[:n]
-                if weight.weight > 0
-            ]
+            tfidf_vector = vectorizer.transform([clean])
+            feature_names = vectorizer.get_feature_names_out()
 
-            if top_features:
-                return {
-                    "predicted_category": category,
-                    "top_features": top_features,
-                }
+            cat_proba = self.cat_pipeline.predict_proba([clean])[0]
+            cat_idx = int(np.argmax(cat_proba))
+            category = _canonical_category(self.cat_encoder.inverse_transform([cat_idx])[0])
+
+            # Extract weights if available across estimators
+            scores = tfidf_vector.toarray()[0]
+            top_indices = np.argsort(scores)[::-1][:n]
+
+            return {
+                "predicted_category": category,
+                "top_features": [
+                    {
+                        "feature": feature_names[index],
+                        "score": round(float(scores[index]), 4),
+                    }
+                    for index in top_indices
+                    if scores[index] > 0
+                ],
+            }
         except Exception:
-            pass
-
-        scores = tfidf_vector.toarray()[0] * coef[cat_idx]
-        top_indices = np.argsort(scores)[::-1][:n]
-
-        return {
-            "predicted_category": category,
-            "top_features": [
-                {
-                    "feature": feature_names[index],
-                    "score": round(float(scores[index]), 4),
-                }
-                for index in top_indices
-                if scores[index] > 0
-            ],
-        }
+            return {
+                "predicted_category": category if 'category' in locals() else "Other",
+                "top_features": [],
+            }
 
 
 predictor = Predictor()

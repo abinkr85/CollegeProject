@@ -97,18 +97,23 @@ export default function AdminDashboard() {
     };
   }, [accessToken]);
 
+  const openCount = summaryData?.statusDistribution?.OPEN ?? (summaryData?.pending ? Math.max(0, summaryData.pending - (summaryData?.statusDistribution?.IN_PROGRESS || 0)) : 0);
+  const inProgressCount = summaryData?.statusDistribution?.IN_PROGRESS ?? 0;
+  const resolvedCount = summaryData?.statusDistribution?.RESOLVED ?? summaryData?.resolved ?? 0;
+
   const sum = {
     total: summaryData?.total ?? 0,
-    pending: summaryData?.pending ?? 0,
-    resolved: summaryData?.resolved ?? 0,
+    open: openCount,
+    inProgress: inProgressCount,
+    resolved: resolvedCount,
     avgResolutionTime: summaryData?.avgResolutionDays ? `${summaryData.avgResolutionDays} days` : '0 days'
   };
 
   const catData = categoryData;
   const statData = summaryData?.statusDistribution ? [
-    { name: 'Open', value: summaryData.statusDistribution.OPEN || 0 },
-    { name: 'In Progress', value: summaryData.statusDistribution.IN_PROGRESS || 0 },
-    { name: 'Resolved', value: summaryData.statusDistribution.RESOLVED || 0 }
+    { name: 'Open', value: openCount },
+    { name: 'In Progress', value: inProgressCount },
+    { name: 'Resolved', value: resolvedCount }
   ] : [];
 
   return (
@@ -133,14 +138,14 @@ export default function AdminDashboard() {
         />
         <MetricCard
           label="Pending Review"
-          value={isLoading ? '...' : sum.pending}
+          value={isLoading ? '...' : sum.open}
           icon={AlertCircle}
           tone="amber"
           change="New complaints waiting for admin action."
         />
         <MetricCard
           label="In Progress"
-          value={isLoading ? '...' : sum.total - sum.pending - sum.resolved < 0 ? 0 : sum.total - sum.pending - sum.resolved}
+          value={isLoading ? '...' : sum.inProgress}
           icon={Clock3}
           tone="indigo"
           change="Complaints currently assigned or being resolved."

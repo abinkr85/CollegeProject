@@ -27,6 +27,12 @@ const OtpInput = forwardRef(function OtpInput(
       if (!digits[index] && index > 0) {
         inputRefs.current[index - 1].focus();
       }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
+      inputRefs.current[index - 1].focus();
+    } else if (e.key === 'ArrowRight' && index < length - 1) {
+      e.preventDefault();
+      inputRefs.current[index + 1].focus();
     }
   };
 
@@ -99,7 +105,9 @@ const OtpInput = forwardRef(function OtpInput(
             ref={(el) => (inputRefs.current[index] = el)}
             type="text"
             inputMode="numeric"
-            maxLength={length}
+            pattern="[0-9]*"
+            autoComplete={index === 0 ? 'one-time-code' : 'off'}
+            maxLength={1}
             value={digit}
             onChange={(e) => handleChange(index, e)}
             onKeyDown={(e) => handleKeyDown(index, e)}

@@ -6,7 +6,7 @@ import { prisma } from '../../config/prisma.js'
 import { redis } from '../../config/redis.js'
 import { UnauthorizedError } from '../../utils/ApiError.js'
 
-const REFRESH_TOKEN_EXPIRY_MS = ms(config.JWT_REFRESH_EXPIRY)
+const REFRESH_TOKEN_EXPIRY_MS = ms(config.JWT_REFRESH_EXPIRY || '7d')
 
 if (!REFRESH_TOKEN_EXPIRY_MS) {
   throw new Error('JWT_REFRESH_EXPIRY must be a valid duration')
@@ -30,6 +30,8 @@ export const generateTokenPair = async (user) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+    canDeleteStudents: Boolean(user.canDeleteStudents),
   }
 
   const accessToken = generateAccessToken(payload)
@@ -73,6 +75,14 @@ export const rotateRefreshToken = async (incomingRefreshToken) => {
           name: true,
           email: true,
           role: true,
+          isSuperAdmin: true,
+          canDeleteStudents: true,
+          department: true,
+          batch: true,
+          year: true,
+          employeeId: true,
+          joiningDate: true,
+          isBlocked: true,
         },
       },
     },
@@ -88,6 +98,10 @@ export const rotateRefreshToken = async (incomingRefreshToken) => {
     }
 
     throw new UnauthorizedError('Refresh token expired or reused - please login again')
+  }
+
+  if (stored.user.isBlocked) {
+    throw new UnauthorizedError('Your account has been suspended by an administrator. Please contact campus support.')
   }
 
   await prisma.refreshToken.delete({

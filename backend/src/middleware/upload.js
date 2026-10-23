@@ -37,3 +37,28 @@ export const uploadImage = (req, res, next) => {
     next(err)
   })
 }
+
+export const uploadIdCardPair = (req, res, next) => {
+  if (req.is('application/json')) {
+    return next()
+  }
+
+  upload.fields([
+    { name: 'frontImage', maxCount: 1 },
+    { name: 'backImage', maxCount: 1 },
+  ])(req, res, (err) => {
+    if (!err) {
+      return next()
+    }
+
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return next(new BadRequestError('Each ID card image must be 5MB or smaller'))
+      }
+      return next(new BadRequestError(`Upload error: ${err.message}`))
+    }
+
+    next(err)
+  })
+}
+

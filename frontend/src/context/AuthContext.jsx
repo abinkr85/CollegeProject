@@ -1,7 +1,7 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { bindAuthHandlers } from '../api/axiosInstance';
-import { loginUser, logoutUser, refreshUserSession, verifyMfaLogin } from '../api/authApi';
+import { loginUser, logoutUser, refreshUserSession, registerUser, verifyMfaLogin } from '../api/authApi';
 import { getUserSettings } from '../api/userApi';
 import { PORTAL_ROLE } from '../portalConfig';
 
@@ -17,6 +17,13 @@ function parseToken(accessToken, fallbackUser = null) {
       name: decoded.name || fallbackUser?.name || null,
       email: decoded.email,
       role: decoded.role?.toLowerCase(),
+      isSuperAdmin: Boolean(decoded.isSuperAdmin ?? fallbackUser?.isSuperAdmin),
+      canDeleteStudents: Boolean(decoded.canDeleteStudents ?? fallbackUser?.canDeleteStudents),
+      department: fallbackUser?.department ?? null,
+      batch: fallbackUser?.batch ?? null,
+      year: fallbackUser?.year ?? null,
+      employeeId: fallbackUser?.employeeId ?? null,
+      joiningDate: fallbackUser?.joiningDate ?? null,
       exp: decoded.exp
     };
   } catch (error) {
@@ -26,6 +33,13 @@ function parseToken(accessToken, fallbackUser = null) {
           name: fallbackUser.name || null,
           email: fallbackUser.email,
           role: fallbackUser.role?.toLowerCase(),
+          isSuperAdmin: Boolean(fallbackUser.isSuperAdmin),
+          canDeleteStudents: Boolean(fallbackUser.canDeleteStudents),
+          department: fallbackUser.department ?? null,
+          batch: fallbackUser.batch ?? null,
+          year: fallbackUser.year ?? null,
+          employeeId: fallbackUser.employeeId ?? null,
+          joiningDate: fallbackUser.joiningDate ?? null,
           exp: undefined
         }
       : null;
@@ -147,11 +161,21 @@ export function AuthProvider({ children }) {
       const parsed = parseToken(savedToken);
 
       if (parsed && parsed.exp && Date.now() < (parsed.exp * 1000 - 10000)) {
-        if (!parsed.name && parsed.id) {
+        if (parsed.id) {
           getUserSettings()
             .then((data) => {
-              if (active && data?.profile?.name) {
-                setUser((prev) => (prev ? { ...prev, name: data.profile.name } : prev));
+              if (active && data?.profile) {
+                setUser((prev) => (prev ? {
+                  ...prev,
+                  name: data.profile.name || prev.name,
+                  department: data.profile.department || prev.department,
+                  batch: data.profile.batch || prev.batch,
+                  year: data.profile.year || prev.year,
+                  employeeId: data.profile.employeeId || prev.employeeId,
+                  joiningDate: data.profile.joiningDate || prev.joiningDate,
+                  isSuperAdmin: Boolean(data.profile.isSuperAdmin ?? prev.isSuperAdmin),
+                  canDeleteStudents: Boolean(data.profile.canDeleteStudents ?? prev.canDeleteStudents),
+                } : prev));
               }
             })
             .catch(() => {});
@@ -180,7 +204,14 @@ export function AuthProvider({ children }) {
   }, [clearSession, refresh]);
 
   const updateUser = useCallback((partialUser) => {
-    setUser((prev) => (prev ? { ...prev, ...partialUser } : prev));
+    setUser((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        ...partialUser,
+        role: partialUser.role ? partialUser.role.toLowerCase() : prev.role
+      };
+    });
   }, []);
 
   const value = useMemo(

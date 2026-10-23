@@ -60,9 +60,23 @@ const studentComplaintCacheKey = (userId, scope, query) => {
 }
 
 export const submitComplaint = async (userId, body, file) => {
+  const student = await repo.findUserById(userId)
+  if (!student) {
+    throw new NotFoundError('Student account not found')
+  }
+  if (student.isBlocked) {
+    throw new ForbiddenError('Your account has been suspended by an administrator.')
+  }
+  if (!student.department?.trim() || !student.year?.trim()) {
+    throw new ForbiddenError(
+      'Profile incomplete: Academic Department and Current Year are mandatory before submitting a complaint. Please update your profile in Settings.'
+    )
+  }
+
   let imageUrl = null
   const text = `${body.title ?? ''} ${body.description ?? ''}`.trim()
   const initialClassification = classifyComplaintText(text)
+  const manualCategory = body.category?.trim() || null
 
   if (file) {
     const result = await uploadToCloudinary(file.buffer, 'campus-complaints')
@@ -74,9 +88,9 @@ export const submitComplaint = async (userId, body, file) => {
     title: body.title,
     description: body.description,
     imageUrl,
-    category: initialClassification.category,
+    category: manualCategory || initialClassification.category,
     priority: initialClassification.priority,
-    nlpConfidence: initialClassification.confidence,
+    nlpConfidence: manualCategory ? 1.0 : initialClassification.confidence,
     status: 'OPEN',
   })
 
@@ -95,6 +109,7 @@ export const submitComplaint = async (userId, body, file) => {
       {
         complaintId: complaint.id,
         text,
+        manualCategory,
       },
       {
         attempts: 3,

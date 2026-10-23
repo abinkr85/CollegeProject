@@ -48,11 +48,20 @@ function normalizeComplaint(complaint) {
 }
 
 function normalizeUpdatePayload(payload) {
-  return {
-    status: statusToApi[payload.status] ?? payload.status,
+  const normStatus = typeof payload.status === 'string' ? payload.status.toLowerCase() : payload.status;
+  const normPriority = typeof payload.priority === 'string' ? payload.priority.toLowerCase() : payload.priority;
+
+  const body = {
+    status: statusToApi[normStatus] ?? (payload.status ? String(payload.status).toUpperCase() : payload.status),
     department: payload.department,
     adminNote: payload.admin_note ?? payload.adminNote ?? null
   };
+
+  if (payload.priority) {
+    body.priority = priorityToApi[normPriority] ?? String(payload.priority).toUpperCase();
+  }
+
+  return body;
 }
 
 export async function getAllComplaints(params = {}) {
@@ -69,6 +78,21 @@ export async function getAllComplaints(params = {}) {
 export async function updateComplaint(id, payload) {
   const { data } = await axiosInstance.put(`/api/admin/complaints/${id}`, normalizeUpdatePayload(payload));
   return normalizeComplaint(unwrapEnvelope(data));
+}
+
+export async function updateComplaintPriority(id, priority) {
+  const normPriority = typeof priority === 'string' ? priority.toLowerCase() : priority;
+  const { data } = await axiosInstance.patch(`/api/admin/complaints/${id}/priority`, {
+    priority: priorityToApi[normPriority] ?? (priority ? String(priority).toUpperCase() : priority)
+  });
+  return normalizeComplaint(unwrapEnvelope(data));
+}
+
+export async function addPublicUpdate(id, message) {
+  const { data } = await axiosInstance.post(`/api/admin/complaints/${id}/public-updates`, {
+    message
+  });
+  return unwrapEnvelope(data);
 }
 
 export async function addInternalNote(id, note) {
@@ -173,5 +197,30 @@ export async function getAdminUsers(params = {}) {
 
 export async function unlockUserAccount(userId) {
   const { data } = await axiosInstance.patch(`/api/admin/users/${userId}/unlock`);
+  return unwrapEnvelope(data);
+}
+
+export async function deleteUserAccount(userId) {
+  const { data } = await axiosInstance.delete(`/api/admin/users/${userId}`);
+  return unwrapEnvelope(data);
+}
+
+export async function toggleSuperAdminStatus(userId, isSuperAdmin) {
+  const { data } = await axiosInstance.patch(`/api/admin/users/${userId}/super-admin`, { isSuperAdmin });
+  return unwrapEnvelope(data);
+}
+
+export async function toggleBlockUser(userId, isBlocked) {
+  const { data } = await axiosInstance.patch(`/api/admin/users/${userId}/block`, { isBlocked });
+  return unwrapEnvelope(data);
+}
+
+export async function toggleStudentDeletionPermission(userId, canDeleteStudents) {
+  const { data } = await axiosInstance.patch(`/api/admin/users/${userId}/permissions`, { canDeleteStudents });
+  return unwrapEnvelope(data);
+}
+
+export async function updateStaffProfile(userId, payload) {
+  const { data } = await axiosInstance.patch(`/api/admin/users/${userId}/staff-profile`, payload);
   return unwrapEnvelope(data);
 }

@@ -125,6 +125,14 @@ export const verifyMfaChallenge = async ({ mfaToken, code }) => {
           name: true,
           email: true,
           role: true,
+          isSuperAdmin: true,
+          canDeleteStudents: true,
+          department: true,
+          batch: true,
+          year: true,
+          employeeId: true,
+          joiningDate: true,
+          isBlocked: true,
         },
       },
     },
@@ -133,6 +141,10 @@ export const verifyMfaChallenge = async ({ mfaToken, code }) => {
   if (!challenge) {
     logger.warn({ mfaToken }, 'MFA verification failed: challenge not found')
     throw new UnauthorizedError('Verification code is invalid or expired')
+  }
+
+  if (challenge.user?.isBlocked) {
+    throw new UnauthorizedError('Your account has been suspended by an administrator. Please contact campus support.')
   }
 
   if (challenge.consumedAt) {

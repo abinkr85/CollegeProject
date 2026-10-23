@@ -30,6 +30,14 @@ const USER_SELECT = {
   name: true,
   email: true,
   role: true,
+  isSuperAdmin: true,
+  canDeleteStudents: true,
+  department: true,
+  batch: true,
+  year: true,
+  employeeId: true,
+  joiningDate: true,
+  isBlocked: true,
   createdAt: true,
 }
 
@@ -117,10 +125,23 @@ export const loginUser = async (dto, { expectedRole } = {}) => {
       email: true,
       password: true,
       role: true,
+      isSuperAdmin: true,
+      canDeleteStudents: true,
+      department: true,
+      batch: true,
+      year: true,
+      employeeId: true,
+      joiningDate: true,
+      isBlocked: true,
       loginFailedAttempts: true,
       lockedUntil: true,
+      createdAt: true,
     },
   })
+
+  if (user?.isBlocked) {
+    throw new UnauthorizedError('Your account has been suspended by an administrator. Please contact campus support.')
+  }
 
   if (user && expectedRole && user.role !== expectedRole) {
     await bcrypt.compare(dto.password, DUMMY_PASSWORD_HASH)
@@ -192,6 +213,13 @@ export const loginUser = async (dto, { expectedRole } = {}) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      isSuperAdmin: Boolean(user.isSuperAdmin),
+      canDeleteStudents: Boolean(user.canDeleteStudents),
+      department: user.department,
+      batch: user.batch,
+      year: user.year,
+      employeeId: user.employeeId,
+      joiningDate: user.joiningDate,
     },
   }
 }

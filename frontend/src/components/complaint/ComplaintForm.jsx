@@ -6,11 +6,13 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { z } from 'zod';
 import { useSubmitComplaint } from '../../hooks/useComplaints';
-import { Sparkles, HelpCircle, CloudUpload, X } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
+import { Sparkles, HelpCircle, CloudUpload, X, ArrowRight, GraduationCap, AlertCircle } from 'lucide-react';
 
 const complaintSchema = z.object({
   title: z.string().trim().min(3, 'Title must be at least 3 characters').max(200, 'Title cannot exceed 200 characters'),
   description: z.string().trim().min(10, 'Description must be at least 10 characters').max(5000, 'Description cannot exceed 5000 characters'),
+  category: z.string().optional(),
   image: z.instanceof(FileList).optional()
 });
 
@@ -30,17 +32,17 @@ function validateImage(file) {
 
 function AutoClassifiedField({ id, label }) {
   return (
-    <div className="space-y-2">
-      <span id={`${id}-label`} className="label-base">{label}</span>
+    <div className="space-y-1.5">
+      <span id={`${id}-label`} className="label-base text-[#0a1422] font-semibold !mb-0">{label}</span>
       <div
         id={id}
         aria-labelledby={`${id}-label`}
-        className="h-[54px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-low/50 px-3.5 text-on-surface shadow-sm flex items-center gap-3 cursor-not-allowed"
+        className="h-[46px] w-full rounded-xl border border-outline-variant/60 bg-surface-container-low/50 px-3.5 text-on-surface shadow-sm flex items-center gap-2.5 cursor-not-allowed"
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
-          <Sparkles size={16} aria-hidden="true" />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+          <Sparkles size={15} aria-hidden="true" />
         </span>
-        <span className="min-w-0 text-sm font-semibold leading-tight text-on-surface/80">
+        <span className="min-w-0 text-sm font-semibold leading-tight text-on-surface/80 truncate">
           Auto-detected by AI
         </span>
       </div>
@@ -51,7 +53,10 @@ function AutoClassifiedField({ id, label }) {
 export default function ComplaintForm() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const { user } = useAuth();
   const mutation = useSubmitComplaint();
+
+  const isProfileIncomplete = !user?.department || !user?.year;
   const {
     register,
     handleSubmit,
@@ -66,6 +71,7 @@ export default function ComplaintForm() {
     defaultValues: {
       title: '',
       description: '',
+      category: '',
       image: undefined
     }
   });
@@ -98,6 +104,12 @@ export default function ComplaintForm() {
   }
 
   async function onSubmit(values) {
+    if (isProfileIncomplete) {
+      toast.error('You must complete your Academic Department and Current Year before filing a complaint.');
+      navigate('/settings');
+      return;
+    }
+
     const imageError = validateImage(values.image?.[0]);
     if (imageError) {
       setError('image', { type: 'manual', message: imageError });
@@ -107,6 +119,9 @@ export default function ComplaintForm() {
     const formData = new FormData();
     formData.append('title', sanitizeText(values.title));
     formData.append('description', sanitizeText(values.description));
+    if (values.category && values.category.trim()) {
+      formData.append('category', values.category.trim());
+    }
     if (values.image?.[0]) {
       formData.append('image', values.image[0]);
     }
@@ -123,6 +138,33 @@ export default function ComplaintForm() {
 
   return (
     <div className="max-w-[1000px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Profile Incomplete Blocking Banner */}
+      {isProfileIncomplete && (
+        <div className="lg:col-span-3 bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl shrink-0">
+              <GraduationCap size={24} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-amber-900">
+                Please Complete Your Profile
+              </h3>
+              <p className="text-xs text-amber-800 leading-relaxed max-w-2xl">
+                Please select your college and current year in Settings before filing a complaint.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="shrink-0 px-4 py-2 bg-amber-800 hover:bg-amber-900 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          >
+            <span>Update in Settings</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Form Area */}
       <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 md:p-8 shadow-sm relative overflow-hidden">
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6 relative z-10">
@@ -139,7 +181,28 @@ export default function ComplaintForm() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AutoClassifiedField id="category" label="AI Category Suggestion" />
+            <div className="space-y-1.5">
+              <label htmlFor="category" className="flex flex-wrap items-center justify-between gap-1 text-xs font-semibold text-[#0a1422] uppercase tracking-wider !mb-0">
+                <span>Category</span>
+                <span className="text-[11px] font-normal text-secondary flex items-center gap-1 shrink-0 normal-case tracking-normal">
+                  <Sparkles size={12} /> AI auto-classifies
+                </span>
+              </label>
+              <select
+                id="category"
+                {...register('category')}
+                className="select-base"
+              >
+                <option value="">✨ Auto-detect with AI (Recommended)</option>
+                <option value="Electrical">⚡ Electrical & Power</option>
+                <option value="Plumbing">🚰 Plumbing & Water</option>
+                <option value="IT">💻 IT & Network</option>
+                <option value="Cleaning">🧹 Cleaning & Sanitation</option>
+                <option value="Maintenance">🛠️ Maintenance & Furniture</option>
+                <option value="Administration">🏢 Administration & Academics</option>
+                <option value="Other">📌 Other / General</option>
+              </select>
+            </div>
             <AutoClassifiedField id="priority" label="Priority Level" />
           </div>
 
@@ -222,17 +285,25 @@ export default function ComplaintForm() {
           <div className="flex flex-col sm:flex-row justify-end gap-3 mt-4 pt-6 border-t border-outline-variant/40">
             <button
               onClick={() => navigate('/dashboard')}
-              className="px-5 py-3 rounded-xl border border-outline-variant/60 text-[#0a1422] font-semibold text-sm hover:bg-surface-container-low transition-colors text-center cursor-pointer"
+              className="px-5 h-[46px] rounded-xl border border-outline-variant/60 text-[#0a1422] font-semibold text-sm hover:bg-surface-container-low transition-colors text-center cursor-pointer flex items-center justify-center"
               type="button"
             >
               Cancel
             </button>
             <button
-              disabled={mutation.isPending}
-              className="px-6 py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-gray-800 transition-colors text-center shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+              disabled={mutation.isPending || isProfileIncomplete}
+              className={`px-6 h-[46px] rounded-xl font-semibold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-1.5 ${
+                isProfileIncomplete
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-primary text-white hover:bg-gray-800 cursor-pointer disabled:opacity-50'
+              }`}
               type="submit"
             >
-              {mutation.isPending ? 'Submitting Complaint...' : 'Submit Complaint'}
+              {mutation.isPending
+                ? 'Submitting Complaint...'
+                : isProfileIncomplete
+                ? 'Complete Profile to Submit'
+                : 'Submit Complaint'}
             </button>
           </div>
         </form>

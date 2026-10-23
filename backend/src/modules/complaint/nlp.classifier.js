@@ -65,13 +65,33 @@ const CATEGORY_RULES = [
       'wire',
       'wiring',
       'switch',
+      'switchboard',
       'socket',
       'outlet',
       'breaker',
+      'mcb',
+      'inverter',
+      'generator',
       'voltage',
+      'voltage fluctuation',
       'light',
+      'tube light',
+      'tubelight',
+      'bulb',
+      'led',
       'fan',
+      'ceiling fan',
+      'regulator',
       'ac',
+      'air conditioner',
+      'cooling',
+      'geyser',
+      'immersion rod',
+      'plug point',
+      'extension box',
+      'fuse',
+      'flickering',
+      'blackout',
     ]),
   },
   {
@@ -82,22 +102,38 @@ const CATEGORY_RULES = [
       'water not coming',
       'drinking water',
       'water cooler',
+      'purifier',
+      'ro water',
+      'ro purifier',
       'tap',
       'pipe',
+      'pipeline',
       'leak',
       'leaking',
+      'leakage',
       'burst pipe',
+      'burst',
       'flood',
       'flooding',
       'overflow',
       'drain',
-      'toilet',
-      'bathroom',
-      'washroom',
+      'drainage',
+      'choke',
+      'choked',
+      'clog',
+      'clogged',
       'flush',
-      'sink',
+      'flush tank',
+      'commode',
+      'urinal',
       'sewer',
       'sewage',
+      'faucet',
+      'health faucet',
+      'shower',
+      'overhead tank',
+      'washbasin',
+      'wash basin',
     ]),
   },
   {
@@ -110,6 +146,7 @@ const CATEGORY_RULES = [
       'server',
       'login',
       'portal',
+      'student portal',
       'website',
       'app',
       'software',
@@ -118,28 +155,64 @@ const CATEGORY_RULES = [
       'lab pc',
       'printer',
       'projector',
+      'hdmi',
       'rfid',
+      'biometric',
+      'attendance machine',
       'system error',
       'password',
+      'lan',
+      'ethernet',
+      'blue screen',
+      'keyboard',
+      'mouse',
+      'monitor',
+      'display',
+      'scanner',
+      'mac address',
+      'captive portal',
+      'net',
     ]),
   },
   {
     category: 'Cleaning',
     patterns: compileKeywords([
       'cleaning',
+      'clean',
       'dirty',
       'garbage',
       'trash',
       'waste',
       'dustbin',
       'smell',
+      'stink',
+      'stinking',
       'odor',
       'odour',
       'hygiene',
       'sanitation',
+      'sanitary',
+      'pad',
+      'napkin',
       'mosquito',
       'pest',
+      'rat',
+      'cockroach',
       'graffiti',
+      'sweep',
+      'sweeping',
+      'mop',
+      'mopping',
+      'spill',
+      'spilled',
+      'algae',
+      'fungus',
+      'mold',
+      'scrub',
+      'scrubbing',
+      'dust',
+      'unhygienic',
+      'cobweb',
     ]),
   },
   {
@@ -156,14 +229,35 @@ const CATEGORY_RULES = [
       'door',
       'window',
       'lock',
+      'latch',
+      'handle',
+      'hinge',
+      'key',
       'ceiling',
       'roof',
       'wall',
       'floor',
+      'tile',
       'lift',
       'elevator',
-      'classroom',
+      'staircase',
+      'stairs',
+      'handrail',
+      'railing',
+      'step',
+      'cracked',
+      'plaster',
+      'seepage',
+      'dampness',
+      'peeling',
+      'whiteboard',
+      'blackboard',
+      'podium',
+      'locker',
       'infrastructure',
+      'gate',
+      'cupboard',
+      'almirah',
     ]),
   },
   {
@@ -171,22 +265,48 @@ const CATEGORY_RULES = [
     patterns: compileKeywords([
       'fee',
       'fees',
+      'fee receipt',
+      'receipt',
       'scholarship',
       'certificate',
+      'bonafide',
       'exam',
+      'examination',
       'timetable',
+      'schedule',
       'attendance',
+      'hall ticket',
+      'admit card',
       'id card',
-      'canteen',
-      'cafeteria',
-      'food',
-      'office',
-      'document',
+      'identity card',
+      'bus pass',
+      'transport bus',
+      'food quality',
+      'mess food',
+      'canteen food',
+      'document verification',
       'admission',
-      'library',
+      'library card',
+      'library fine',
+      'book return',
+      'fine',
+      'warden',
+      'hostel fee',
     ]),
   },
 ]
+
+const SAFETY_CRITICAL_CATEGORY_PATTERNS = {
+  Electrical: compileKeywords([
+    'fire',
+    'smoke',
+    'short circuit',
+    'electric shock',
+    'electrocution',
+    'exposed wire',
+  ]),
+  Plumbing: compileKeywords(['burst pipe', 'sewage leak', 'gas leak']),
+}
 
 const HIGH_PRIORITY_PATTERNS = [
   ...compileKeywords([
@@ -270,14 +390,35 @@ export const classifyComplaintText = text => {
     }
   }
 
-  const matchedRule = CATEGORY_RULES.find(rule => matchesAny(complaintText, rule.patterns))
+  // Check safety critical override first
+  let safetyCategory = null
+  for (const [cat, patterns] of Object.entries(SAFETY_CRITICAL_CATEGORY_PATTERNS)) {
+    if (matchesAny(complaintText, patterns)) {
+      safetyCategory = cat
+      break
+    }
+  }
+
+  let matchedCategory = safetyCategory
+  let bestScore = 0
+
+  if (!matchedCategory) {
+    for (const rule of CATEGORY_RULES) {
+      const matchCount = rule.patterns.filter(pattern => pattern.test(complaintText)).length
+      if (matchCount > bestScore) {
+        bestScore = matchCount
+        matchedCategory = rule.category
+      }
+    }
+  }
+
   const hasHighSignal = matchesAny(complaintText, HIGH_PRIORITY_PATTERNS)
   const hasLowSignal = matchesAny(complaintText, LOW_PRIORITY_PATTERNS)
 
   return {
-    category: matchedRule?.category ?? 'Other',
+    category: matchedCategory ?? 'Other',
     priority: hasHighSignal ? 'HIGH' : hasLowSignal ? 'LOW' : 'MEDIUM',
-    confidence: matchedRule ? 0.95 : hasHighSignal || hasLowSignal ? 0.8 : 0.5,
+    confidence: safetyCategory ? 0.98 : matchedCategory ? 0.95 : hasHighSignal || hasLowSignal ? 0.8 : 0.5,
     source: 'rules',
   }
 }
@@ -288,9 +429,16 @@ export const applyClassificationOverrides = (text, rawResult = {}) => {
   const rawPriority = normalizeNlpPriority(rawResult.priority)
   const rawConfidence = clampConfidence(rawResult.category_confidence ?? rawResult.confidence)
 
+  const isSafetyCritical =
+    matchesAny(text, SAFETY_CRITICAL_CATEGORY_PATTERNS.Electrical) ||
+    matchesAny(text, SAFETY_CRITICAL_CATEGORY_PATTERNS.Plumbing)
+
   const shouldUseRuleCategory =
     ruleResult.category !== 'Other' &&
-    (rawCategory === 'Other' || rawConfidence < 0.8 || rawCategory !== ruleResult.category)
+    (isSafetyCritical ||
+      rawCategory === 'Other' ||
+      rawConfidence < 0.65 ||
+      (rawConfidence < 0.85 && rawCategory === 'Other'))
 
   const category = shouldUseRuleCategory ? ruleResult.category : rawCategory
   const priority = ruleResult.priority !== 'MEDIUM' ? ruleResult.priority : rawPriority

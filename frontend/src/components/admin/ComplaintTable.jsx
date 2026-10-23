@@ -42,8 +42,7 @@ export default function ComplaintTable({ complaints = [], isLoading = false, onR
   const { timezone } = useSystemTimezone();
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white shadow-sm">
-      <div className="overflow-x-auto">
+    <div className="overflow-x-auto w-full">
         <table className="w-full text-left text-sm text-gray-600">
           <thead className="bg-[#f8f9fa] text-xs uppercase tracking-wider text-gray-500 border-b border-[#e5e7eb]">
             <tr>
@@ -88,8 +87,15 @@ export default function ComplaintTable({ complaints = [], isLoading = false, onR
                   <td className="px-5 py-4 font-medium text-gray-900 truncate max-w-[200px] xl:max-w-[300px]">
                     {complaint.title}
                   </td>
-                  <td className="px-5 py-4 hidden md:table-cell truncate max-w-[150px]">
-                    {complaint.user?.name}
+                  <td className="px-5 py-4 hidden md:table-cell truncate max-w-[160px]">
+                    <span className="inline-flex items-center gap-1.5 truncate">
+                      <span className="truncate">{complaint.user?.name}</span>
+                      {complaint.user?.idCardStatus === 'VERIFIED' && (
+                        <span className="text-xs shrink-0" title="Verified Student ID">
+                          🛡️
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td className="px-5 py-4 hidden lg:table-cell">
                     <PriorityBadge priority={complaint.priority} />
@@ -119,6 +125,5 @@ export default function ComplaintTable({ complaints = [], isLoading = false, onR
           </tbody>
         </table>
       </div>
-    </div>
   );
 }

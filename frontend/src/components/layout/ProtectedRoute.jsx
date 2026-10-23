@@ -14,7 +14,7 @@ export default function ProtectedRoute({ role, children }) {
     return <Navigate to={PORTAL_LOGIN_PATH} replace />;
   }
 
-  if (role && user.role !== role) {
+  if (role && user.role?.toLowerCase() !== role.toLowerCase()) {
     return <Navigate to={PORTAL_LOGIN_PATH} replace />;
   }
 

@@ -2,21 +2,15 @@ import axios from 'axios';
 import { PORTAL_LOGIN_PATH } from '../portalConfig';
 
 function resolveBaseURL() {
-  const configured = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-  if (!import.meta.env.DEV || typeof window === 'undefined') {
-    return configured;
+  if (import.meta.env.DEV) {
+    const configured = import.meta.env.VITE_API_URL;
+    if (configured && !configured.includes('localhost') && !configured.includes('127.0.0.1')) {
+      return configured;
+    }
+    return '';
   }
 
-  const loopbackHosts = new Set(['localhost', '127.0.0.1']);
-  const apiUrl = new URL(configured);
-
-  if (loopbackHosts.has(apiUrl.hostname) && loopbackHosts.has(window.location.hostname)) {
-    apiUrl.hostname = window.location.hostname;
-    return apiUrl.toString().replace(/\/$/, '');
-  }
-
-  return configured;
+  return import.meta.env.VITE_API_URL || 'http://localhost:5000';
 }
 
 const axiosInstance = axios.create({

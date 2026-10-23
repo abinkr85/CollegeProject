@@ -23,6 +23,17 @@ const COMPLAINT_SUMMARY_SELECT = {
     },
   },
 }
+export const findUserById = (id) =>
+  prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      department: true,
+      batch: true,
+      year: true,
+      isBlocked: true,
+    },
+  })
 
 export const buildWhereClause = ({ category, priority, status, department, search } = {}) => {
   const where = {}
