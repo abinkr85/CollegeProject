@@ -1,3 +1,4 @@
+import base64
 import hmac
 
 from flask import Flask, request, jsonify
@@ -5,6 +6,7 @@ from flask_cors import CORS
 from pydantic import BaseModel, field_validator, ValidationError
 
 from config import BATCH_LIMIT, CLIENT_URLS, MAX_TEXT_LENGTH, NLP_REQUIRE_SECRET, RELOAD_SECRET
+from src.card_processor import detect_and_crop_id_card
 from src.logger import log_prediction
 from src.predictor import predictor
 
@@ -127,6 +129,45 @@ def reload_models():
 @app.route("/metadata", methods=["GET"])
 def metadata():
     return jsonify(predictor.metadata or {}), 200
+
+
+@app.route("/card/detect-crop", methods=["POST"])
+def detect_crop_card():
+    orientation = "vertical"
+    image_bytes = None
+
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        image_data = payload.get("image") or ""
+        orientation = payload.get("orientation", "vertical")
+        if image_data.startswith("data:"):
+            parts = image_data.split(",", 1)
+            b64_str = parts[1] if len(parts) > 1 else parts[0]
+        else:
+            b64_str = image_data
+
+        try:
+            image_bytes = base64.b64decode(b64_str)
+        except Exception:
+            return jsonify({"error": "Invalid base64 image data"}), 400
+    elif "image" in request.files:
+        image_file = request.files["image"]
+        orientation = request.form.get("orientation", "vertical")
+        image_bytes = image_file.read()
+    else:
+        return jsonify({"error": "No image provided in request body or files"}), 400
+
+    if not image_bytes or len(image_bytes) == 0:
+        return jsonify({"error": "Empty image payload"}), 400
+
+    try:
+        result = detect_and_crop_id_card(image_bytes, orientation=orientation)
+        return jsonify(result), 200
+    except ValueError as val_err:
+        return jsonify({"error": str(val_err)}), 400
+    except Exception as exc:
+        app.logger.error("Card detection error: %s", exc)
+        return jsonify({"error": f"Failed to process card: {str(exc)}"}), 500
 
 
 try:

@@ -3,6 +3,7 @@ import { BadRequestError, NotFoundError } from '../../utils/ApiError.js'
 import { logger } from '../../utils/logger.js'
 import { revokeAllUserTokens } from '../auth/token.service.js'
 import { uploadToCloudinary } from '../../config/cloudinary.js'
+import { config } from '../../config/index.js'
 
 export const getUserSettings = async (userId) => {
   const user = await prisma.user.findUnique({
@@ -155,6 +156,50 @@ const toBuffer = (fileOrDataUrl) => {
     return Buffer.from(base64, 'base64')
   }
   return null
+}
+
+export const scanAndCropIdCard = async ({ imageBuffer, imageDataUrl, orientation = 'vertical' }) => {
+  const buf = imageBuffer || toBuffer(imageDataUrl)
+  if (!buf) {
+    throw new BadRequestError('No valid image provided for scanning')
+  }
+
+  const base64Data = `data:image/jpeg;base64,${buf.toString('base64')}`
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), config.NLP_TIMEOUT_MS || 8000)
+
+    const response = await fetch(`${config.NLP_SERVICE_URL}/card/detect-crop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-NLP-Secret': config.RELOAD_SECRET,
+      },
+      body: JSON.stringify({
+        image: base64Data,
+        orientation,
+      }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      const data = await response.json()
+      return data
+    } else {
+      const errText = await response.text()
+      logger.warn({ status: response.status, errText }, 'NLP OpenCV service returned non-200 for card crop')
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, 'NLP OpenCV card crop request failed or timed out, returning fallback')
+  }
+
+  return {
+    success: true,
+    detected: false,
+    image: base64Data,
+  }
 }
 
 export const uploadIdCard = async (

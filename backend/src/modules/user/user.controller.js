@@ -21,6 +21,20 @@ export const revokeSessions = async (req, res) => {
   return ApiResponse.ok(res, result, result.message)
 }
 
+export const scanAndCropCard = async (req, res) => {
+  const imageBuffer = req.file?.buffer
+  const imageDataUrl = req.body?.image
+  const orientation = req.body?.orientation || 'vertical'
+
+  const result = await userService.scanAndCropIdCard({
+    imageBuffer,
+    imageDataUrl,
+    orientation,
+  })
+
+  return ApiResponse.ok(res, result, 'Card edge detection and perspective crop complete')
+}
+
 export const uploadIdCard = async (req, res) => {
   const frontBuffer = req.files?.frontImage?.[0]?.buffer
   const backBuffer = req.files?.backImage?.[0]?.buffer

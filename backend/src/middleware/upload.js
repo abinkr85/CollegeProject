@@ -75,3 +75,31 @@ export const uploadIdCardPair = (req, res, next) => {
   })
 }
 
+export const uploadSingleCardScan = (req, res, next) => {
+  if (req.is('application/json')) {
+    return next()
+  }
+
+  multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+      files: 1,
+    },
+    fileFilter: (req, file, cb) => {
+      if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        return cb(new BadRequestError('Only JPEG, PNG, and WebP images are allowed'))
+      }
+      cb(null, true)
+    },
+  }).single('image')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return next(new BadRequestError('Card image must be 10MB or smaller'))
+      }
+      return next(new BadRequestError(`Upload error: ${err.message}`))
+    }
+    next()
+  })
+}
+

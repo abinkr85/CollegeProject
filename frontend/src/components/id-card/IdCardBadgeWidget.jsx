@@ -34,12 +34,18 @@ export default function IdCardBadgeWidget({
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [orientation, setOrientation] = useState('portrait'); // 'portrait' | 'landscape'
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const isVerified = profile?.idCardStatus === 'VERIFIED';
   const isRejected = profile?.idCardStatus === 'REJECTED';
   const hasFrontImage = Boolean(profile?.idCardFrontUrl);
   const hasBackImage = Boolean(profile?.idCardBackUrl);
   const studentIdNumber = profile?.studentIdNumber || 'Not specified';
+
+  const rawUrl = currentSide === 'front' ? profile?.idCardFrontUrl : profile?.idCardBackUrl || profile?.idCardFrontUrl;
+  const currentImageUrl = rawUrl ? (retryNonce ? `${rawUrl}?r=${retryNonce}` : rawUrl) : '';
 
   const handleCopyId = () => {
     if (!profile?.studentIdNumber) return;
@@ -53,6 +59,8 @@ export default function IdCardBadgeWidget({
     const nextSide = currentSide === 'front' ? 'back' : 'front';
     setCurrentSide(nextSide);
     setIsFlipped(!isFlipped);
+    setImageLoading(true);
+    setImageError(false);
   };
 
   return (
@@ -143,17 +151,69 @@ export default function IdCardBadgeWidget({
 
                 {/* Flip Card Wrapper */}
                 <div
-                  onClick={() => setIsZoomOpen(true)}
-                  className={`group relative rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-200 dark:border-slate-700 bg-slate-950 cursor-zoom-in transition-all duration-300 hover:shadow-blue-500/10 hover:border-blue-400/60 ${
+                  onClick={() => !imageError && setIsZoomOpen(true)}
+                  className={`group relative rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-200 dark:border-slate-700 bg-slate-950 transition-all duration-300 hover:shadow-blue-500/10 hover:border-blue-400/60 ${
+                    !imageError ? 'cursor-zoom-in' : ''
+                  } ${
                     orientation === 'portrait' ? 'aspect-[1/1.58]' : 'aspect-[1.58/1]'
                   }`}
                 >
+                  {/* Skeleton loader while fetching image */}
+                  {imageLoading && (
+                    <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center p-4 z-10 animate-pulse">
+                      <RefreshCw className="w-6 h-6 text-blue-400 animate-spin mb-2 opacity-80" />
+                      <span className="text-[11px] font-semibold text-slate-300">
+                        Loading ID card photo...
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Fallback if image failed to load from CDN */}
+                  {imageError ? (
+                    <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center p-4 z-20 text-center">
+                      <AlertCircle className="w-8 h-8 text-amber-400 mb-2" />
+                      <span className="text-xs font-bold text-white mb-1">
+                        Could not load ID photo
+                      </span>
+                      <span className="text-[10px] text-slate-400 mb-3 max-w-[200px]">
+                        The card is verified. Tap reload to re-fetch the image from storage.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setImageError(false);
+                          setImageLoading(true);
+                          setRetryNonce((prev) => prev + 1);
+                          onRefresh?.();
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow cursor-pointer"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Reload Image</span>
+                      </button>
+                    </div>
+                  ) : null}
+
                   {/* ID Card Image (Front or Back) */}
-                  <img
-                    src={currentSide === 'front' ? profile.idCardFrontUrl : profile.idCardBackUrl || profile.idCardFrontUrl}
-                    alt={`Student ID ${currentSide}`}
-                    className="w-full h-full object-contain bg-slate-900 transition-transform duration-300 group-hover:scale-102"
-                  />
+                  {currentImageUrl && (
+                    <img
+                      key={`${currentSide}-${retryNonce}-${currentImageUrl}`}
+                      src={currentImageUrl}
+                      alt={`Student ID ${currentSide}`}
+                      onLoad={() => {
+                        setImageLoading(false);
+                        setImageError(false);
+                      }}
+                      onError={() => {
+                        setImageLoading(false);
+                        setImageError(true);
+                      }}
+                      className={`w-full h-full object-contain bg-slate-900 transition-all duration-300 group-hover:scale-102 ${
+                        imageLoading ? 'opacity-0' : 'opacity-100'
+                      }`}
+                    />
+                  )}
 
                   {/* Subtle Holographic Glass Sheen Overlay */}
                   <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
@@ -165,10 +225,12 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Hover Zoom Prompt */}
-                  <div className="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-medium text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow">
-                    <ZoomIn className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Inspect</span>
-                  </div>
+                  {!imageError && !imageLoading && (
+                    <div className="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-medium text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow">
+                      <ZoomIn className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Inspect</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Card Controls Toolbar */}
@@ -450,7 +512,7 @@ export default function IdCardBadgeWidget({
             {/* High-res Image Container */}
             <div className="relative max-h-[75vh] w-full flex items-center justify-center p-2">
               <img
-                src={currentSide === 'front' ? profile.idCardFrontUrl : profile.idCardBackUrl || profile.idCardFrontUrl}
+                src={currentImageUrl || (currentSide === 'front' ? profile?.idCardFrontUrl : profile?.idCardBackUrl || profile?.idCardFrontUrl)}
                 alt="Zoomed Student ID"
                 className="max-h-[70vh] w-auto rounded-xl shadow-2xl border border-slate-700 object-contain"
               />

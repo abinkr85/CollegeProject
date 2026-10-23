@@ -25,6 +25,7 @@ import {
 import { toast } from 'react-toastify';
 import Button from '../ui/Button';
 import { parseIdCardText } from '../../utils/idCardParser';
+import { scanAndCropIdCardApi } from '../../api/userApi';
 
 // Dynamic import or fallback for client-side OCR
 let tesseractWorkerPromise = null;
@@ -368,7 +369,7 @@ export default function IdCardScannerModal({
   /**
    * WhatsApp Document Scan: Crop out background room & save ONLY the card rectangle!
    */
-  const takeSnapshot = () => {
+  const takeSnapshot = async () => {
     if (isCapturingRef.current) return;
     if (stepRef.current === 'review') return;
     if (stepRef.current === 'front' && frontImageRef.current) return;
@@ -421,35 +422,42 @@ export default function IdCardScannerModal({
       const cropW = Math.min(vWidth - cropX, Math.round(reticleRect.width * scaleX));
       const cropH = Math.min(vHeight - cropY, Math.round(reticleRect.height * scaleY));
 
-      // Target canvas: Card dimensions only (Background completely removed!)
+      // Frame with margin around reticle so OpenCV can detect the physical card corners
+      const marginRatio = 0.20;
+      const expandedX = Math.max(0, Math.round(cropX - cropW * marginRatio));
+      const expandedY = Math.max(0, Math.round(cropY - cropH * marginRatio));
+      const expandedW = Math.min(vWidth - expandedX, Math.round(cropW * (1 + 2 * marginRatio)));
+      const expandedH = Math.min(vHeight - expandedY, Math.round(cropH * (1 + 2 * marginRatio)));
+
       const canvas = document.createElement('canvas');
-      const targetW = orientation === 'vertical' ? 760 : 1200;
-      const targetH = orientation === 'vertical' ? 1200 : 760;
-
-      canvas.width = targetW;
-      canvas.height = targetH;
+      canvas.width = expandedW;
+      canvas.height = expandedH;
       const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, expandedX, expandedY, expandedW, expandedH, 0, 0, expandedW, expandedH);
 
-      // Draw only the cropped reticle area (background discarded!)
-      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
-
-      // Apply smart contrast/brightness enhancement
-      try {
-        const imgData = ctx.getImageData(0, 0, targetW, targetH);
-        const d = imgData.data;
-        const contrast = 1.08;
-        const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-        for (let i = 0; i < d.length; i += 4) {
-          d[i] = factor * (d[i] - 128) + 128;
-          d[i + 1] = factor * (d[i + 1] - 128) + 128;
-          d[i + 2] = factor * (d[i + 2] - 128) + 128;
-        }
-        ctx.putImageData(imgData, 0, 0);
-      } catch (_) {}
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
       const activeStep = stepRef.current;
-      processCapturedImage(dataUrl, activeStep);
+
+      setStepNotice('🔍 Straightening & deskewing card edges...');
+
+      // Call Python OpenCV Service via Node backend
+      let finalDataUrl = rawDataUrl;
+      try {
+        const cropRes = await scanAndCropIdCardApi({
+          image: rawDataUrl,
+          orientation,
+        });
+        if (cropRes?.image) {
+          finalDataUrl = cropRes.image;
+          if (cropRes.detected) {
+            setStepNotice('✓ 4-Corner Card Detected & Deskewed!');
+          }
+        }
+      } catch (err) {
+        console.warn('OpenCV deskew fallback:', err);
+      }
+
+      await processCapturedImage(finalDataUrl, activeStep);
     } catch (err) {
       console.error('Take snapshot error:', err);
       isCapturingRef.current = false;
@@ -564,9 +572,22 @@ export default function IdCardScannerModal({
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const dataUrl = event.target.result;
-      processCapturedImage(dataUrl, targetSide);
+      setStepNotice('🔍 Processing card image with OpenCV...');
+      let finalUrl = dataUrl;
+      try {
+        const res = await scanAndCropIdCardApi({ image: dataUrl, orientation });
+        if (res?.image) {
+          finalUrl = res.image;
+          if (res.detected) {
+            setStepNotice('✓ Card Edge Detected & Straightened!');
+          }
+        }
+      } catch (err) {
+        console.warn('File upload crop fallback:', err);
+      }
+      processCapturedImage(finalUrl, targetSide);
     };
     reader.readAsDataURL(file);
   };

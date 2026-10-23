@@ -25,9 +25,22 @@ vi.mock('../src/modules/auth/token.service.js', () => ({
   revokeAllUserTokens: mocks.revokeAllUserTokens,
 }))
 
+vi.mock('../src/config/index.js', () => ({
+  config: {
+    NLP_SERVICE_URL: 'http://localhost:5001',
+    NLP_TIMEOUT_MS: 1000,
+    RELOAD_SECRET: 'test-secret',
+  },
+}))
+
+vi.mock('../src/config/cloudinary.js', () => ({
+  uploadToCloudinary: vi.fn(),
+}))
+
 import {
   getUserSettings,
   revokeAllSessions,
+  scanAndCropIdCard,
   updateNotifications,
   updateProfile,
 } from '../src/modules/user/user.service.js'
@@ -122,6 +135,34 @@ describe('User Settings Service', () => {
 
       expect(mocks.revokeAllUserTokens).toHaveBeenCalledWith('usr-123')
       expect(result.message).toContain('signed out')
+    })
+  })
+
+  describe('scanAndCropIdCard', () => {
+    it('throws BadRequestError if no image is provided', async () => {
+      await expect(scanAndCropIdCard({})).rejects.toThrow('No valid image provided for scanning')
+    })
+
+    it('returns cropped image response on success', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          detected: true,
+          image: 'data:image/jpeg;base64,cropped123',
+        }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const result = await scanAndCropIdCard({
+        imageDataUrl: 'data:image/jpeg;base64,input123',
+        orientation: 'vertical',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.detected).toBe(true)
+      expect(result.image).toBe('data:image/jpeg;base64,cropped123')
+      vi.unstubAllGlobals()
     })
   })
 })

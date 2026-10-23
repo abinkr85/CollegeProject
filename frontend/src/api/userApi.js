@@ -87,4 +87,9 @@ export async function uploadStudentIdCard(payload) {
   return unwrapEnvelope(data);
 }
 
+export async function scanAndCropIdCardApi(payload) {
+  const { data } = await axiosInstance.post('/api/user/id-card/scan-crop', payload);
+  return unwrapEnvelope(data);
+}
+
 
