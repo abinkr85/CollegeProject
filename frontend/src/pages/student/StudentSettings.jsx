@@ -21,39 +21,14 @@ import {
   getUserSettings,
   revokeAllSessions,
   updateUserNotifications,
-  updateUserProfile,
   uploadStudentIdCard
 } from '../../api/userApi';
 import Navbar from '../../components/layout/Navbar';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import Spinner from '../../components/ui/Spinner';
 import { useAuth } from '../../hooks/useAuth';
 import IdCardBadgeWidget from '../../components/id-card/IdCardBadgeWidget';
 import IdCardScannerModal from '../../components/id-card/IdCardScannerModal';
-
-const DEPARTMENTS = [
-  'Bachelor of Computer Application (BCA)',
-  'Bachelor of Business Administration (BBA)',
-  'Harsha Institute of Technology',
-  'Harsha Institute of Management Studies',
-  'Harsha College of Nursing',
-  'Victory College of Nursing',
-  'Harsha Institute of Allied Health Sciences',
-  'Harsha Institute of Physiotherapy',
-  'Harsha College of Pharmacy',
-  'Harsha Institute of Hospital Administration',
-  'Harsha School of Law'
-];
-
-const YEARS = [
-  '1st Year',
-  '2nd Year',
-  '3rd Year',
-  '4th Year',
-  '5th Year / Intern',
-  "Postgraduate / Master's"
-];
 
 const TABS = [
   { id: 'profile', label: 'Profile Details', icon: User },
@@ -73,7 +48,6 @@ export default function StudentSettings() {
   const [department, setDepartment] = useState('');
   const [year, setYear] = useState('');
   const [createdAt, setCreatedAt] = useState('');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showInitialOnboardingModal, setShowInitialOnboardingModal] = useState(false);
 
   // Notification Preferences State
@@ -109,8 +83,8 @@ export default function StudentSettings() {
         setEmailInstantAlerts(!!data.notifications?.emailInstantAlerts);
         setEmailDailyDigest(!!data.notifications?.emailDailyDigest);
 
-        // Guide student on initial login if profile details are incomplete
-        if (!currentDept || !currentYear) {
+        // Guide student on initial login if ID card is unverified
+        if (data.profile?.idCardStatus !== 'VERIFIED') {
           setShowInitialOnboardingModal(true);
         }
       }
@@ -150,44 +124,6 @@ export default function StudentSettings() {
       });
     }
   };
-
-  async function handleSaveProfile(e) {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Full name is required.');
-      return;
-    }
-    if (!department) {
-      toast.error('Academic Department / Institution is required to file complaints.');
-      return;
-    }
-    if (!year) {
-      toast.error('Academic Year is required to file complaints.');
-      return;
-    }
-
-    setIsSavingProfile(true);
-    try {
-      const updated = await updateUserProfile({
-        name: name.trim(),
-        department,
-        year
-      });
-      setName(updated.name);
-      setDepartment(updated.department);
-      setYear(updated.year);
-      updateUser?.(updated);
-      toast.success('Profile details updated successfully! Redirecting to dashboard...');
-      setShowInitialOnboardingModal(false);
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 700);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update profile.');
-    } finally {
-      setIsSavingProfile(false);
-    }
-  }
 
   async function handleSaveNotifications(e) {
     e.preventDefault();
@@ -330,135 +266,14 @@ export default function StudentSettings() {
             {/* TAB 1: PROFILE DETAILS */}
             {activeTab === 'profile' && (
               <div className="space-y-6">
-                {/* Institutional Student ID Verification Card */}
+                {/* Institutional Student ID Verification Card (Single Source of Truth) */}
                 <IdCardBadgeWidget
-                  profile={profileData || { name, department, year, idCardStatus: 'UNVERIFIED' }}
+                  profile={profileData || { name, email, department, year, idCardStatus: 'UNVERIFIED' }}
                   onOpenScanner={() => setIsScannerOpen(true)}
                   onRefresh={loadData}
                 />
-
-                <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 sm:p-8 shadow-sm">
-                  <div className="border-b border-outline-variant/60 pb-5 mb-6">
-                    <h2 className="text-xl font-bold text-primary">Student Profile</h2>
-                    <p className="text-sm text-on-surface-variant mt-1">
-                      Update your name, college, and current academic year.
-                    </p>
-                  </div>
-
-                <form onSubmit={handleSaveProfile} className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <Input
-                      id="name"
-                      label="Full Name"
-                      type="text"
-                      placeholder="Your Full Name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      icon={User}
-                      required
-                    />
-
-                    <div>
-                      <label htmlFor="email" className="label-base flex items-center justify-between">
-                        <span>College Email</span>
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 lowercase bg-emerald-50 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 size={12} /> verified
-                        </span>
-                      </label>
-                      <div className="relative">
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                          <Mail size={18} />
-                        </div>
-                        <input
-                          id="email"
-                          type="email"
-                          value={email}
-                          disabled
-                          className="input-base !pl-10 bg-surface-container-low text-on-surface-variant cursor-not-allowed opacity-80"
-                        />
-                      </div>
-                      <p className="text-[11px] text-on-surface-variant mt-1.5">
-                        Verified email used for login and notifications.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="min-w-0">
-                      <label htmlFor="department" className="label-base flex items-center justify-between">
-                        <span className="truncate">College / Institution *</span>
-                        <span className="text-[11px] font-semibold text-secondary shrink-0 ml-1">Required</span>
-                      </label>
-                      <div className="relative">
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 z-10">
-                          <Building2 size={18} />
-                        </div>
-                        <select
-                          id="department"
-                          value={department}
-                          onChange={(e) => setDepartment(e.target.value)}
-                          className="select-base !pl-10"
-                          title={department || 'Select your college'}
-                          required
-                        >
-                          <option value="">Select your college</option>
-                          {DEPARTMENTS.map((dept) => (
-                            <option key={dept} value={dept}>
-                              {dept}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0">
-                      <label htmlFor="year" className="label-base flex items-center justify-between">
-                        <span className="truncate">Current Year *</span>
-                        <span className="text-[11px] font-semibold text-secondary shrink-0 ml-1">Required</span>
-                      </label>
-                      <div className="relative">
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 z-10">
-                          <GraduationCap size={18} />
-                        </div>
-                        <select
-                          id="year"
-                          value={year}
-                          onChange={(e) => setYear(e.target.value)}
-                          className="select-base !pl-10"
-                          title={year || 'Select Academic Year'}
-                          required
-                        >
-                          <option value="">Select Academic Year</option>
-                          {YEARS.map((yr) => (
-                            <option key={yr} value={yr}>
-                              {yr}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-[12px] text-on-surface-variant bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/40 flex items-start gap-2">
-                    <AlertCircle size={16} className="text-secondary shrink-0 mt-0.5" />
-                    <span>
-                      <strong>Note:</strong> Selecting your college and current year is required to submit complaints.
-                    </span>
-                  </p>
-
-                  <div className="pt-4 border-t border-outline-variant/60 flex justify-end">
-                    <Button
-                      type="submit"
-                      loading={isSavingProfile}
-                      className="px-6 h-[46px] text-sm font-semibold rounded-xl flex items-center gap-2"
-                    >
-                      <Save size={16} /> Save Changes
-                    </Button>
-                  </div>
-                </form>
               </div>
-            </div>
-          )}
+            )}
 
             {/* TAB 2: NOTIFICATIONS */}
             {activeTab === 'notifications' && (
@@ -685,7 +500,7 @@ export default function StudentSettings() {
         </div>
       )}
 
-      {/* Initial Login Profile Completion Guidance Modal */}
+      {/* Initial Login ID Card Verification Guidance Modal */}
       {showInitialOnboardingModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
@@ -695,39 +510,42 @@ export default function StudentSettings() {
         >
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5">
             <div className="flex items-center gap-3.5 text-primary">
-              <div className="p-3 bg-secondary/10 text-secondary rounded-2xl">
-                <GraduationCap size={28} />
+              <div className="p-3 bg-blue-600/10 text-blue-600 rounded-2xl">
+                <ShieldCheck size={28} />
               </div>
               <div>
                 <h3 id="onboarding-modal-title" className="text-lg font-bold text-on-surface">
-                  Complete Your Student Profile
+                  Verify Your Institutional ID Card
                 </h3>
                 <p className="text-xs text-on-surface-variant">
-                  Required before filing complaints on campus
+                  Required to access all campus features and file complaints
                 </p>
               </div>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-xs leading-relaxed space-y-1">
-              <p className="font-semibold flex items-center gap-1.5">
-                <AlertCircle size={14} className="text-amber-700" /> Action Required:
+            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 rounded-xl p-4 text-xs leading-relaxed space-y-1">
+              <p className="font-semibold flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+                <AlertCircle size={14} /> Action Required:
               </p>
               <p>
-                Please choose your <strong>College</strong> and <strong>Current Year</strong> so your complaints reach the right team quickly.
+                To maintain campus security and authenticate your student profile, please scan your physical College ID Card.
               </p>
             </div>
 
             <p className="text-xs text-on-surface-variant leading-relaxed">
-              Select these two details in the form below and click <strong>Save Changes</strong> to get started.
+              Your Roll Number, Course, Batch, and Expiry Date will be authenticated and locked to your profile.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button
                 type="button"
-                onClick={() => setShowInitialOnboardingModal(false)}
+                onClick={() => {
+                  setShowInitialOnboardingModal(false);
+                  setIsScannerOpen(true);
+                }}
                 className="px-5 py-2.5 text-xs font-semibold"
               >
-                Complete Profile Now
+                Scan & Verify ID Card
               </Button>
             </div>
           </div>

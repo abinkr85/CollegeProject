@@ -349,6 +349,18 @@ export default function IdCardBadgeWidget({
                       {profile.idCardVerifiedAt ? new Date(profile.idCardVerifiedAt).toLocaleDateString() : 'Verified Recently'}
                     </span>
                   </div>
+                  {/* College Email */}
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 sm:col-span-2 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">College Account Email</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                        {profile.email || 'N/A'}
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      <CheckCircle2 size={12} /> Verified
+                    </span>
+                  </div>
                 </div>
 
                 {/* Trust Seal Banner */}

@@ -207,7 +207,7 @@ export const scanAndCropIdCard = async ({ imageBuffer, imageDataUrl, orientation
 
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), config.NLP_TIMEOUT_MS || 8000)
+    const timeoutId = setTimeout(() => controller.abort(), config.NLP_TIMEOUT_MS || 20000)
 
     const response = await fetch(`${config.NLP_SERVICE_URL}/card/detect-crop`, {
       method: 'POST',
@@ -259,7 +259,7 @@ export const scanAndCropIdCardMulti = async ({
 
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), config.NLP_TIMEOUT_MS || 12000)
+    const timeoutId = setTimeout(() => controller.abort(), config.NLP_TIMEOUT_MS || 25000)
 
     const response = await fetch(`${config.NLP_SERVICE_URL}/idcard_recognition_multi_page`, {
       method: 'POST',
@@ -362,11 +362,29 @@ export const uploadIdCard = async (
     throw new BadRequestError('Both front and back ID card images are required for verification')
   }
 
+  // Edge detection & perspective deskewing crop before storing to Cloudinary
+  let finalFront = front
+  let finalBack = back
+  try {
+    const [frontCrop, backCrop] = await Promise.all([
+      scanAndCropIdCard({ imageBuffer: front, orientation: 'vertical' }),
+      scanAndCropIdCard({ imageBuffer: back, orientation: 'vertical' }),
+    ])
+    if (frontCrop?.image && frontCrop?.detected) {
+      finalFront = toBuffer(frontCrop.image) || front
+    }
+    if (backCrop?.image && backCrop?.detected) {
+      finalBack = toBuffer(backCrop.image) || back
+    }
+  } catch (cropErr) {
+    logger.warn({ err: cropErr.message }, 'Edge detection pre-upload crop fallback to original')
+  }
+
   let frontUpload, backUpload
   try {
     ;[frontUpload, backUpload] = await Promise.all([
-      uploadToCloudinary(front, 'campus-student-ids'),
-      uploadToCloudinary(back, 'campus-student-ids'),
+      uploadToCloudinary(finalFront, 'campus-student-ids'),
+      uploadToCloudinary(finalBack, 'campus-student-ids'),
     ])
   } catch (err) {
     logger.error({ err }, 'Cloudinary upload failed for student ID card')

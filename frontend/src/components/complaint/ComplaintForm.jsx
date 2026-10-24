@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import { z } from 'zod';
 import { useSubmitComplaint } from '../../hooks/useComplaints';
 import { useAuth } from '../../hooks/useAuth';
-import { Sparkles, HelpCircle, CloudUpload, X, ArrowRight, GraduationCap, AlertCircle } from 'lucide-react';
+import { Sparkles, HelpCircle, CloudUpload, X, ArrowRight, GraduationCap, AlertCircle, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 const complaintSchema = z.object({
   title: z.string().trim().min(3, 'Title must be at least 3 characters').max(200, 'Title cannot exceed 200 characters'),
@@ -57,6 +57,8 @@ export default function ComplaintForm() {
   const mutation = useSubmitComplaint();
 
   const isProfileIncomplete = !user?.department || !user?.year;
+  const isIdCardUnverified = user?.role === 'STUDENT' && user?.idCardStatus !== 'VERIFIED';
+  const isBlockedFromSubmitting = isProfileIncomplete || isIdCardUnverified;
   const {
     register,
     handleSubmit,
@@ -138,8 +140,32 @@ export default function ComplaintForm() {
 
   return (
     <div className="max-w-[1000px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Profile Incomplete Blocking Banner */}
-      {isProfileIncomplete && (
+      {/* ID Verification or Profile Incomplete Blocking Banner */}
+      {isIdCardUnverified ? (
+        <div className="lg:col-span-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 bg-amber-500/20 text-amber-500 rounded-xl shrink-0 mt-0.5">
+              <ShieldAlert size={24} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-amber-500 flex items-center gap-1.5">
+                Institutional ID Verification Required
+              </h3>
+              <p className="text-xs text-on-surface-variant leading-relaxed max-w-2xl">
+                To maintain campus security and integrity, students must scan and verify their physical College ID Card in Settings before submitting complaints.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="shrink-0 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+          >
+            <span>Verify ID Card Now</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      ) : isProfileIncomplete ? (
         <div className="lg:col-span-3 bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl shrink-0">
@@ -163,7 +189,7 @@ export default function ComplaintForm() {
             <ArrowRight size={13} />
           </button>
         </div>
-      )}
+      ) : null}
 
       {/* Form Area */}
       <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-6 md:p-8 shadow-sm relative overflow-hidden">
@@ -291,9 +317,9 @@ export default function ComplaintForm() {
               Cancel
             </button>
             <button
-              disabled={mutation.isPending || isProfileIncomplete}
+              disabled={mutation.isPending || isBlockedFromSubmitting}
               className={`px-6 h-[46px] rounded-xl font-semibold text-sm transition-colors text-center shadow-sm flex items-center justify-center gap-1.5 ${
-                isProfileIncomplete
+                isBlockedFromSubmitting
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-primary text-white hover:bg-gray-800 cursor-pointer disabled:opacity-50'
               }`}
@@ -301,6 +327,8 @@ export default function ComplaintForm() {
             >
               {mutation.isPending
                 ? 'Submitting Complaint...'
+                : isIdCardUnverified
+                ? 'Verify ID Card to Submit'
                 : isProfileIncomplete
                 ? 'Complete Profile to Submit'
                 : 'Submit Complaint'}

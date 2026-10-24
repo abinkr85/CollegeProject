@@ -67,6 +67,11 @@ export const submitComplaint = async (userId, body, file) => {
   if (student.isBlocked) {
     throw new ForbiddenError('Your account has been suspended by an administrator.')
   }
+  if (student.role === 'STUDENT' && student.idCardStatus !== 'VERIFIED') {
+    throw new ForbiddenError(
+      'Institutional ID verification required: Please scan and verify your physical College ID Card in Settings before submitting a complaint.'
+    )
+  }
   if (!student.department?.trim() || !student.year?.trim()) {
     throw new ForbiddenError(
       'Profile incomplete: Academic Department and Current Year are mandatory before submitting a complaint. Please update your profile in Settings.'
