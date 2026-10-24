@@ -523,8 +523,8 @@ export default function StudentSettings() {
               </div>
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 rounded-xl p-4 text-xs leading-relaxed space-y-1">
-              <p className="font-semibold flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+            <div className="bg-secondary-fixed/30 border border-secondary-fixed text-primary rounded-xl p-4 text-xs leading-relaxed space-y-1">
+              <p className="font-semibold flex items-center gap-1.5 text-secondary">
                 <AlertCircle size={14} /> Action Required:
               </p>
               <p>
