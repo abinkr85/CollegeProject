@@ -33,7 +33,6 @@ export default function IdCardBadgeWidget({
   const [isFlipped, setIsFlipped] = useState(false);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
-  const [orientation, setOrientation] = useState('portrait'); // 'portrait' | 'landscape'
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -65,11 +64,11 @@ export default function IdCardBadgeWidget({
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/60 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
-      {/* Widget Header */}
-      <div className="px-6 py-4.5 border-b border-outline-variant/40 flex flex-wrap items-center justify-between gap-3 bg-surface-container-low/40">
-        <div className="flex items-center space-x-3">
+      {/* Widget Header: Balanced responsive layout preventing button wrapping */}
+      <div className="px-6 py-4.5 border-b border-outline-variant/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-surface-container-low/40">
+        <div className="flex items-center space-x-3.5 min-w-0">
           <div
-            className={`p-2.5 rounded-xl shadow-xs ${
+            className={`p-2.5 rounded-xl shadow-xs shrink-0 ${
               isVerified
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-secondary-fixed/50 text-secondary border border-secondary-fixed/80'
@@ -81,28 +80,28 @@ export default function IdCardBadgeWidget({
               <ShieldAlert className="w-5 h-5 text-amber-500" />
             )}
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm sm:text-base font-bold text-primary">
+              <h3 className="text-sm sm:text-base font-bold text-primary truncate">
                 Institutional Student ID Card
               </h3>
               {isVerified ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-xs">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-xs shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   Verified Student 🛡️
                 </span>
               ) : isRejected ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 shrink-0">
                   <AlertCircle className="w-3.5 h-3.5 text-red-600" />
                   Needs Re-Scan
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
                   Not Scanned
                 </span>
               )}
             </div>
-            <p className="text-xs text-on-surface-variant mt-0.5">
+            <p className="text-xs text-on-surface-variant mt-0.5 truncate sm:whitespace-normal">
               {isVerified
                 ? 'Your student credentials are authenticated with your college physical ID card.'
                 : 'Scan or upload both sides of your college physical ID card (Harsha Institutions format supported).'}
@@ -111,19 +110,21 @@ export default function IdCardBadgeWidget({
         </div>
 
         {isVerified && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait')}
-              className="px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded-lg border border-outline-variant/60 transition shadow-xs cursor-pointer"
-              title="Toggle portrait/landscape view"
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsZoomOpen(true)}
+              className="text-xs font-semibold"
             >
-              {orientation === 'portrait' ? 'Portrait' : 'Landscape'}
-            </button>
+              <ZoomIn className="w-3.5 h-3.5 mr-1.5 text-secondary" />
+              Inspect Card
+            </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={onOpenScanner}
-              className="text-xs font-semibold border-outline-variant/70 text-primary hover:bg-surface-container-low shadow-xs"
+              className="text-xs font-semibold"
             >
               <Camera className="w-3.5 h-3.5 mr-1.5 text-secondary" />
               Re-Scan ID Card
@@ -134,28 +135,27 @@ export default function IdCardBadgeWidget({
 
       <div className="p-6">
         {isVerified && hasFrontImage ? (
-          /* VERIFIED STATE: AUTHENTIC DIGITAL ID BADGE VIEWER */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Left: 3D ID Card Badge Preview */}
+          /* VERIFIED STATE: BALANCED DUAL-COLUMN LAYOUT ALIGNED AT TOP */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+            {/* Left: Authentic 3D ID Card Badge Preview */}
             <div className="lg:col-span-5 flex flex-col items-center">
-              {/* Lanyard Strap & Clip Simulation */}
-              <div className="w-16 h-4 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-800 rounded-t-sm shadow-xs mx-auto" />
-              <div className="w-8 h-3 bg-gradient-to-r from-slate-300 via-slate-100 to-slate-300 rounded-sm shadow-sm mx-auto relative -mt-0.5 z-10 flex items-center justify-center border border-slate-300/60">
-                <div className="w-4 h-1 bg-slate-500 rounded-full" />
+              {/* Lanyard Strap & Swivel Clip Simulation */}
+              <div className="w-12 h-4 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-800 rounded-t shadow-xs mx-auto" />
+              <div className="w-7 h-3.5 bg-gradient-to-b from-slate-200 via-slate-100 to-slate-300 rounded-xs shadow-xs border border-slate-300 mx-auto -mt-0.5 z-20 flex items-center justify-center">
+                <div className="w-3 h-0.5 bg-slate-500 rounded-full" />
               </div>
+              <div className="w-3.5 h-3 rounded-full border-2 border-slate-400 mx-auto -mt-1.5 z-10 shadow-xs" />
 
-              {/* ID Card Holder Container */}
-              <div className="relative w-full max-w-[280px] -mt-1">
+              {/* Protective Acrylic Badge Sleeve */}
+              <div className="relative w-full max-w-[245px] p-2 bg-slate-50/90 rounded-2xl border border-outline-variant/70 shadow-md backdrop-blur-xs transition-all duration-300 hover:shadow-lg -mt-1.5">
                 {/* Lanyard punch hole cut-out in card acrylic */}
-                <div className="w-10 h-2 bg-slate-200 rounded-full mx-auto mb-2 border border-slate-300/80 shadow-inner z-10" />
+                <div className="w-9 h-2 bg-white rounded-full mx-auto mb-2 border border-slate-300/80 shadow-inner" />
 
-                {/* Flip Card Wrapper */}
+                {/* Physical Card Preview Frame */}
                 <div
                   onClick={() => !imageError && setIsZoomOpen(true)}
-                  className={`group relative rounded-2xl overflow-hidden shadow-md border-2 border-outline-variant/60 bg-surface-container-low transition-all duration-300 hover:shadow-xl hover:border-secondary/60 ${
+                  className={`group relative rounded-xl overflow-hidden bg-white shadow-xs border border-slate-200 aspect-[1/1.58] transition-all duration-300 hover:border-secondary/60 ${
                     !imageError ? 'cursor-zoom-in' : ''
-                  } ${
-                    orientation === 'portrait' ? 'aspect-[1/1.58]' : 'aspect-[1.58/1]'
                   }`}
                 >
                   {/* Skeleton loader while fetching image */}
@@ -175,7 +175,7 @@ export default function IdCardBadgeWidget({
                       <span className="text-xs font-bold text-primary mb-1">
                         Could not load ID photo
                       </span>
-                      <span className="text-[10px] text-on-surface-variant mb-3 max-w-[200px]">
+                      <span className="text-[10px] text-on-surface-variant mb-3 max-w-[180px]">
                         The card is verified. Tap reload to re-fetch the image from storage.
                       </span>
                       <button
@@ -209,7 +209,7 @@ export default function IdCardBadgeWidget({
                         setImageLoading(false);
                         setImageError(true);
                       }}
-                      className={`w-full h-full object-contain bg-surface-container-low transition-all duration-300 group-hover:scale-102 ${
+                      className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-102 ${
                         imageLoading ? 'opacity-0' : 'opacity-100'
                       }`}
                     />
@@ -219,34 +219,30 @@ export default function IdCardBadgeWidget({
                   <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
 
                   {/* Corner Badge Tag */}
-                  <div className="absolute top-3 left-3 bg-primary/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-md">
+                  <div className="absolute top-2.5 left-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
                     <ShieldCheck className="w-3 h-3 text-emerald-400" />
                     <span>{currentSide === 'front' ? 'FRONT' : 'BACK'}</span>
                   </div>
 
                   {/* Hover Zoom Prompt */}
                   {!imageError && !imageLoading && (
-                    <div className="absolute bottom-3 right-3 bg-primary/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shadow-md">
+                    <div className="absolute bottom-2.5 right-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow-sm">
                       <ZoomIn className="w-3.5 h-3.5 text-secondary-fixed" />
                       <span>Inspect</span>
                     </div>
                   )}
                 </div>
+              </div>
 
-                {/* Card Controls Toolbar */}
-                <div className="flex items-center justify-between mt-3 px-1">
-                  <span className="text-xs text-on-surface-variant">
-                    Showing: <strong className="text-primary uppercase font-mono font-bold">{currentSide} Side</strong>
-                  </span>
-
-                  <button
-                    onClick={toggleSide}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/10 hover:bg-secondary/15 text-secondary text-xs font-bold transition border border-secondary/20 shadow-xs cursor-pointer"
-                  >
-                    <RotateCw className="w-3.5 h-3.5" />
-                    <span>Flip to {currentSide === 'front' ? 'Back' : 'Front'}</span>
-                  </button>
-                </div>
+              {/* Card Controls Toolbar: Clean full-width button matching card width */}
+              <div className="w-full max-w-[245px] mt-3">
+                <button
+                  onClick={toggleSide}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary text-xs font-semibold border border-outline-variant/60 transition shadow-xs cursor-pointer"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-secondary" />
+                  <span>Flip to {currentSide === 'front' ? 'Back Side' : 'Front Side'}</span>
+                </button>
               </div>
             </div>
 
@@ -272,9 +268,9 @@ export default function IdCardBadgeWidget({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   {/* Roll No */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors flex items-center justify-between">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors flex items-center justify-between">
                     <div>
-                      <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                      <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                         Student Roll No
                       </span>
                       <span className="font-mono font-bold text-primary text-sm">
@@ -297,8 +293,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Course */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Course / Department
                     </span>
                     <span className="font-semibold text-primary text-xs line-clamp-1">
@@ -307,8 +303,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Batch */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Batch
                     </span>
                     <span className="font-semibold text-primary text-xs">
@@ -317,8 +313,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Valid Upto / Expiry Date */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Valid Upto
                     </span>
                     <span className="font-bold text-emerald-700 font-mono text-xs">
@@ -327,8 +323,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Student Phone */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Student Phone
                     </span>
                     <span className="font-semibold text-primary font-mono text-xs">
@@ -337,8 +333,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Emergency Contact */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Emergency Contact
                     </span>
                     <span className="font-semibold text-primary font-mono text-xs">
@@ -347,8 +343,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Academic Year */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Academic Year
                     </span>
                     <span className="font-semibold text-primary text-xs">
@@ -357,8 +353,8 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* Verified Timestamp */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
-                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors">
+                    <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                       Verified Date
                     </span>
                     <span className="font-semibold text-emerald-700 text-xs">
@@ -367,9 +363,9 @@ export default function IdCardBadgeWidget({
                   </div>
 
                   {/* College Email */}
-                  <div className="p-3.5 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors sm:col-span-2 flex items-center justify-between">
+                  <div className="p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/50 shadow-xs hover:border-outline-variant transition-colors sm:col-span-2 flex items-center justify-between">
                     <div>
-                      <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-1">
+                      <span className="text-on-surface-variant block text-[10px] uppercase font-bold tracking-wider mb-0.5">
                         College Account Email
                       </span>
                       <span className="font-semibold text-primary text-xs">
@@ -383,40 +379,18 @@ export default function IdCardBadgeWidget({
                 </div>
 
                 {/* Trust Seal Banner */}
-                <div className="flex items-center gap-2.5 text-xs text-emerald-900 font-medium bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-200/90 shadow-xs">
+                <div className="flex items-center gap-2.5 text-xs text-emerald-900 font-medium bg-emerald-50/80 p-3 rounded-xl border border-emerald-200/90 shadow-xs">
                   <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                   <span>
                     Your identity is fully verified. Every complaint you submit carries the official institutional student seal.
                   </span>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsZoomOpen(true)}
-                  className="text-xs font-semibold border-outline-variant/70 text-primary hover:bg-surface-container-low shadow-xs"
-                >
-                  <ZoomIn className="w-3.5 h-3.5 mr-1.5 text-secondary" />
-                  Inspect Full Resolution
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onOpenScanner}
-                  className="text-xs font-semibold border-outline-variant/70 text-on-surface-variant hover:text-primary hover:bg-surface-container-low shadow-xs"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                  Update ID Photo
-                </Button>
-              </div>
             </div>
           </div>
         ) : (
           /* UNVERIFIED STATE: MODERN ONBOARDING & SCANNER INVITATION */
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             {/* Left: Realistic Card Mockup Preview */}
             <div className="md:col-span-5 flex flex-col items-center">
               <div className="relative w-full max-w-[240px] rounded-2xl border-2 border-dashed border-secondary/30 bg-surface-container-low/50 p-4 aspect-[1/1.58] flex flex-col justify-between shadow-xs">
