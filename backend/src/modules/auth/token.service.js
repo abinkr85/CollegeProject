@@ -5,6 +5,7 @@ import { config } from '../../config/index.js'
 import { prisma } from '../../config/prisma.js'
 import { redis } from '../../config/redis.js'
 import { UnauthorizedError } from '../../utils/ApiError.js'
+import { logger } from '../../utils/logger.js'
 
 const REFRESH_TOKEN_EXPIRY_MS = ms(config.JWT_REFRESH_EXPIRY || '7d')
 
@@ -122,7 +123,11 @@ export const blacklistAccessToken = async (token, expiresIn) => {
   }
 
   const expirySeconds = Math.ceil(expiryMs / 1000)
-  await redis.setex(`blacklist:${token}`, expirySeconds, '1')
+  try {
+    await redis.setex(`blacklist:${token}`, expirySeconds, '1')
+  } catch (err) {
+    logger.warn({ err: err?.message }, 'Failed to blacklist access token in Redis')
+  }
 }
 
 export const revokeAllUserTokens = async (userId) => {

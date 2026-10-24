@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq'
 import { redis } from '../config/redis.js'
+import { logger } from '../utils/logger.js'
 
 export const emailQueue = new Queue('email', {
   connection: redis,
@@ -16,4 +17,8 @@ export const emailQueue = new Queue('email', {
       count: 50,
     },
   },
+})
+
+emailQueue.on('error', (err) => {
+  logger.warn({ err: err?.message || err }, 'Email queue Redis error')
 })

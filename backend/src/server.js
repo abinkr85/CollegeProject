@@ -60,12 +60,33 @@ const shutdown = async (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
 
+const isIgnorableRedisError = (err) => {
+  const msg = err?.message || String(err || '')
+  const name = err?.name || ''
+  return (
+    name === 'ReplyError' ||
+    msg.includes('max requests limit exceeded') ||
+    msg.includes('Redis') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('NR_CLOSED')
+  )
+}
+
 process.on('uncaughtException', (err) => {
+  if (isIgnorableRedisError(err)) {
+    logger.warn({ err: err?.message || err }, 'Suppressed Redis uncaught exception to maintain server availability')
+    return
+  }
   logger.fatal({ err }, 'Uncaught exception')
   process.exit(1)
 })
 
 process.on('unhandledRejection', (err) => {
+  if (isIgnorableRedisError(err)) {
+    logger.warn({ err: err?.message || err }, 'Suppressed Redis unhandled rejection to maintain server availability')
+    return
+  }
   logger.fatal({ err }, 'Unhandled rejection')
   process.exit(1)
 })

@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import { config } from '../config/index.js'
 import { redis } from '../config/redis.js'
 import { UnauthorizedError } from '../utils/ApiError.js'
+import { logger } from '../utils/logger.js'
 
 export const authenticate = async (req, res, next) => {
   try {
@@ -18,7 +19,12 @@ export const authenticate = async (req, res, next) => {
       throw new UnauthorizedError('Missing or malformed Authorization header')
     }
 
-    const isBlacklisted = await redis.get(`blacklist:${token}`)
+    let isBlacklisted = false
+    try {
+      isBlacklisted = await redis.get(`blacklist:${token}`)
+    } catch (err) {
+      logger.warn({ err: err?.message }, 'Redis token blacklist check failed, failing open')
+    }
 
     if (isBlacklisted) {
       throw new UnauthorizedError('Token has been revoked')

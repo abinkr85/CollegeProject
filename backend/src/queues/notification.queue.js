@@ -19,6 +19,10 @@ export const notificationQueue = new Queue('notification', {
   },
 })
 
+notificationQueue.on('error', (err) => {
+  logger.warn({ err: err?.message || err }, 'Notification queue Redis error')
+})
+
 export const scheduleNotificationJobs = async () => {
   try {
     if (typeof notificationQueue.upsertJobScheduler === 'function') {

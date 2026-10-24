@@ -8,11 +8,18 @@ const createRedisClient = () => {
     enableReadyCheck: true,
     lazyConnect: false,
     retryStrategy: (times) => {
-      if (times > 10) {
-        logger.error('Redis connection failed after 10 retries')
-        return null
+      if (times > 5) {
+        // Back off to 30 seconds once retried several times to prevent spinning on quota limits
+        return 30000
       }
-      return Math.min(times * 100, 3000)
+      return Math.min(times * 1000, 5000)
+    },
+    reconnectOnError: (err) => {
+      const msg = err?.message || ''
+      if (msg.includes('max requests limit exceeded')) {
+        return false
+      }
+      return 1
     },
   })
 

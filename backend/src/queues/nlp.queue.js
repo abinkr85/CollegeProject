@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq'
 import { redis } from '../config/redis.js'
+import { logger } from '../utils/logger.js'
 
 export const nlpQueue = new Queue('nlp', {
   connection: redis,
@@ -16,4 +17,8 @@ export const nlpQueue = new Queue('nlp', {
       count: 50,
     },
   },
+})
+
+nlpQueue.on('error', (err) => {
+  logger.warn({ err: err?.message || err }, 'NLP queue Redis error')
 })

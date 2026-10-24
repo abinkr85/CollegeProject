@@ -3,6 +3,7 @@ import { RedisStore } from 'rate-limit-redis'
 import { redis } from '../config/redis.js'
 import { config } from '../config/index.js'
 import { TooManyRequestsError } from '../utils/ApiError.js'
+import { logger } from '../utils/logger.js'
 
 const createLimiter = ({ windowMs, max, prefix }) => {
   if (config.NODE_ENV === 'development' || config.NODE_ENV === 'test') {
@@ -21,7 +22,11 @@ const createLimiter = ({ windowMs, max, prefix }) => {
         try {
           return await redis.call(...args)
         } catch (err) {
-          // If Redis throws (e.g. Upstash quota exceeded), passOnStoreError handles it gracefully
+          if (args[0] === 'SCRIPT' && args[1] === 'LOAD') {
+            logger.warn({ err: err?.message }, 'RedisStore SCRIPT LOAD skipped due to Redis error')
+            return ''
+          }
+          // If Redis throws during request handling, passOnStoreError handles it gracefully
           throw err
         }
       },

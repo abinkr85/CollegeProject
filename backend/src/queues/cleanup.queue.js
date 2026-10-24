@@ -19,6 +19,10 @@ export const cleanupQueue = new Queue('cleanup', {
   },
 })
 
+cleanupQueue.on('error', (err) => {
+  logger.warn({ err: err?.message || err }, 'Cleanup queue Redis error')
+})
+
 export const scheduleCleanupJobs = async () => {
   try {
     if (typeof cleanupQueue.upsertJobScheduler === 'function') {
