@@ -75,6 +75,16 @@ export const createApp = () => {
 
   app.use(requestId)
 
+  // Cloud host health check: must respond immediately with 200 OK without running rate limits or hitting Redis
+  app.get('/health', (req, res) =>
+    res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      requestId: req.id,
+    })
+  )
+
   app.use(
     helmet({
       contentSecurityPolicy: config.NODE_ENV === 'production'
@@ -193,15 +203,6 @@ export const createApp = () => {
       },
     })
   })
-
-  app.get('/health', (req, res) =>
-    res.json({
-      status: 'ok',
-      uptime: process.uptime(),
-      timestamp: new Date().toISOString(),
-      requestId: req.id,
-    })
-  )
 
   app.get('/api/neon/status', async (req, res) => {
     let dbStatus = 'disconnected'

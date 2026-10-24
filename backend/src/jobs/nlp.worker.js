@@ -80,3 +80,7 @@ export const nlpWorker = new Worker(
 nlpWorker.on('failed', (job, err) => {
   logger.error({ jobId: job?.id, err }, 'NLP job failed')
 })
+
+nlpWorker.on('error', (err) => {
+  logger.warn({ err: err.message }, 'NLP worker Redis connection error')
+})

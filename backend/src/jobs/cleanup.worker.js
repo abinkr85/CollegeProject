@@ -49,3 +49,7 @@ export const cleanupWorker = new Worker(
 cleanupWorker.on('failed', (job, err) => {
   logger.error({ jobId: job?.id, err }, 'Cleanup job failed')
 })
+
+cleanupWorker.on('error', (err) => {
+  logger.warn({ err: err.message }, 'Cleanup worker Redis connection error')
+})

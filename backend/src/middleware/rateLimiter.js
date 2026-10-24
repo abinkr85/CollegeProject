@@ -13,9 +13,18 @@ const createLimiter = ({ windowMs, max, prefix }) => {
     max,
     standardHeaders: true,
     legacyHeaders: false,
+    passOnStoreError: true, // Fail-open: if Redis quota is exceeded or unreachable, do not crash requests with 500
+    skip: (req) => req.path === '/health' || req.path === '/',
     keyGenerator: (req) => `${prefix}:${ipKeyGenerator(req.ip)}`,
     store: new RedisStore({
-      sendCommand: (...args) => redis.call(...args),
+      sendCommand: async (...args) => {
+        try {
+          return await redis.call(...args)
+        } catch (err) {
+          // If Redis throws (e.g. Upstash quota exceeded), passOnStoreError handles it gracefully
+          throw err
+        }
+      },
       prefix: `rl:${prefix}:`,
     }),
     handler: (req, res, next) => {

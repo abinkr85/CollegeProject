@@ -23,3 +23,7 @@ export const notificationWorker = new Worker(
 notificationWorker.on('failed', (job, err) => {
   logger.error({ jobId: job?.id, err }, 'Notification job failed')
 })
+
+notificationWorker.on('error', (err) => {
+  logger.warn({ err: err.message }, 'Notification worker Redis connection error')
+})

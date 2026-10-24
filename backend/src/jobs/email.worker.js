@@ -127,3 +127,7 @@ export const emailWorker = new Worker(
 emailWorker.on('failed', (job, err) => {
   logger.error({ jobId: job?.id, err }, 'Email job failed')
 })
+
+emailWorker.on('error', (err) => {
+  logger.warn({ err: err.message }, 'Email worker Redis connection error')
+})
