@@ -64,62 +64,46 @@ export default function IdCardBadgeWidget({
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/60 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
-      {/* Widget Header: Balanced responsive layout preventing button wrapping */}
-      <div className="px-6 py-4.5 border-b border-outline-variant/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-surface-container-low/40">
-        <div className="flex items-center space-x-3.5 min-w-0">
+      {/* Widget Header: Clean, spacious, and uncluttered */}
+      <div className="px-6 py-4 border-b border-outline-variant/40 flex items-center justify-between gap-4 bg-surface-container-low/30">
+        <div className="flex items-center space-x-3 min-w-0">
           <div
-            className={`p-2.5 rounded-xl shadow-xs shrink-0 ${
+            className={`p-2 rounded-xl shadow-xs shrink-0 ${
               isVerified
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-secondary-fixed/50 text-secondary border border-secondary-fixed/80'
             }`}
           >
             {isVerified ? (
-              <ShieldCheck className="w-5 h-5" />
+              <ShieldCheck className="w-4.5 h-4.5" />
             ) : (
-              <ShieldAlert className="w-5 h-5 text-amber-500" />
+              <ShieldAlert className="w-4.5 h-4.5 text-amber-500" />
             )}
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm sm:text-base font-bold text-primary truncate">
-                Institutional Student ID Card
-              </h3>
-              {isVerified ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-xs shrink-0">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Verified Student 🛡️
-                </span>
-              ) : isRejected ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 shrink-0">
-                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
-                  Needs Re-Scan
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
-                  Not Scanned
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-on-surface-variant mt-0.5 truncate sm:whitespace-normal">
-              {isVerified
-                ? 'Your student credentials are authenticated with your college physical ID card.'
-                : 'Scan or upload both sides of your college physical ID card (Harsha Institutions format supported).'}
-            </p>
+          <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+            <h3 className="text-base font-bold text-primary truncate">
+              Institutional Student ID Card
+            </h3>
+            {isVerified ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-xs shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Verified
+              </span>
+            ) : isRejected ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 shrink-0">
+                <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                Needs Re-Scan
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                Not Scanned
+              </span>
+            )}
           </div>
         </div>
 
         {isVerified && (
-          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsZoomOpen(true)}
-              className="text-xs font-semibold"
-            >
-              <ZoomIn className="w-3.5 h-3.5 mr-1.5 text-secondary" />
-              Inspect Card
-            </Button>
+          <div className="shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -127,7 +111,7 @@ export default function IdCardBadgeWidget({
               className="text-xs font-semibold"
             >
               <Camera className="w-3.5 h-3.5 mr-1.5 text-secondary" />
-              Re-Scan ID Card
+              Re-Scan
             </Button>
           </div>
         )}
