@@ -76,6 +76,35 @@ def test_api_detect_crop_endpoint():
     assert data["image"].startswith("data:image/jpeg;base64,")
 
 
+def test_api_detect_crop_multi_page_endpoint():
+    from app import app
+    from config import RELOAD_SECRET
+
+    client = app.test_client()
+
+    img = np.full((400, 400, 3), 200, dtype=np.uint8)
+    _, buf = cv2.imencode(".jpg", img)
+    import base64
+    b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
+
+    resp = client.post(
+        "/idcard_recognition_multi_page",
+        json={
+            "base64_1": f"data:image/jpeg;base64,{b64}",
+            "base64_2": f"data:image/jpeg;base64,{b64}",
+            "orientation": "vertical",
+        },
+        headers={"X-NLP-Secret": RELOAD_SECRET},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["Status"] == "Ok"
+    assert data["success"] is True
+    assert data["front"]["image"].startswith("data:image/jpeg;base64,")
+    assert data["back"]["image"].startswith("data:image/jpeg;base64,")
+
+
+
 def test_is_valid_card_polygon_rejects_non_card_shapes():
     from src.card_processor import is_valid_card_polygon
 

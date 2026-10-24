@@ -60,6 +60,10 @@ export const uploadIdCardPair = (req, res, next) => {
   uploadIdCardPairMulter.fields([
     { name: 'frontImage', maxCount: 1 },
     { name: 'backImage', maxCount: 1 },
+    { name: 'front', maxCount: 1 },
+    { name: 'back', maxCount: 1 },
+    { name: 'file1', maxCount: 1 },
+    { name: 'file2', maxCount: 1 },
   ])(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {

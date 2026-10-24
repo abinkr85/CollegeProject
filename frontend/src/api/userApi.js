@@ -92,4 +92,10 @@ export async function scanAndCropIdCardApi(payload) {
   return unwrapEnvelope(data);
 }
 
+export async function scanAndCropIdCardMultiApi(payload) {
+  const { data } = await axiosInstance.post('/api/user/id-card/scan-crop-multi', payload);
+  return unwrapEnvelope(data);
+}
+
+
 

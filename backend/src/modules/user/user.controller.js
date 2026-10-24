@@ -35,6 +35,24 @@ export const scanAndCropCard = async (req, res) => {
   return ApiResponse.ok(res, result, 'Card edge detection and perspective crop complete')
 }
 
+export const scanAndCropIdCardMulti = async (req, res) => {
+  const frontBuffer = req.files?.front?.[0]?.buffer || req.files?.file1?.[0]?.buffer
+  const backBuffer = req.files?.back?.[0]?.buffer || req.files?.file2?.[0]?.buffer
+  const frontDataUrl = req.body?.base64_1 || req.body?.front || req.body?.image
+  const backDataUrl = req.body?.base64_2 || req.body?.back
+  const orientation = req.body?.orientation || 'vertical'
+
+  const result = await userService.scanAndCropIdCardMulti({
+    frontBuffer,
+    frontDataUrl,
+    backBuffer,
+    backDataUrl,
+    orientation,
+  })
+
+  return ApiResponse.ok(res, result, 'Multi-page ID card edge detection and crop complete')
+}
+
 export const uploadIdCard = async (req, res) => {
   const frontBuffer = req.files?.frontImage?.[0]?.buffer
   const backBuffer = req.files?.backImage?.[0]?.buffer

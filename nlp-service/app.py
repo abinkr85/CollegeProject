@@ -170,6 +170,65 @@ def detect_crop_card():
         return jsonify({"error": f"Failed to process card: {str(exc)}"}), 500
 
 
+@app.route("/idcard_recognition_multi_page", methods=["POST"])
+@app.route("/card/detect-crop-multi", methods=["POST"])
+def detect_crop_card_multi():
+    orientation = "vertical"
+    front_bytes = None
+    back_bytes = None
+
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        orientation = payload.get("orientation", "vertical")
+        front_raw = payload.get("base64_1") or payload.get("front") or payload.get("image") or ""
+        back_raw = payload.get("base64_2") or payload.get("back") or ""
+
+        def decode_b64(val: str) -> bytes | None:
+            if not val:
+                return None
+            clean = val.split(",", 1)[-1] if val.startswith("data:") else val
+            try:
+                return base64.b64decode(clean)
+            except Exception:
+                return None
+
+        front_bytes = decode_b64(front_raw)
+        back_bytes = decode_b64(back_raw)
+    else:
+        orientation = request.form.get("orientation", "vertical")
+        front_file = request.files.get("file1") or request.files.get("front") or request.files.get("image")
+        back_file = request.files.get("file2") or request.files.get("back")
+        if front_file:
+            front_bytes = front_file.read()
+        if back_file:
+            back_bytes = back_file.read()
+
+    if not front_bytes:
+        return jsonify({"Status": "Front Image Error", "error": "Front image is required"}), 400
+
+    try:
+        front_result = detect_and_crop_id_card(front_bytes, orientation=orientation)
+        back_result = None
+        if back_bytes and len(back_bytes) > 0:
+            back_result = detect_and_crop_id_card(back_bytes, orientation=orientation)
+
+        return (
+            jsonify(
+                {
+                    "Status": "Ok",
+                    "success": True,
+                    "front": front_result,
+                    "back": back_result,
+                }
+            ),
+            200,
+        )
+    except Exception as exc:
+        app.logger.error("Multi-page card detection error: %s", exc)
+        return jsonify({"Status": "Processing Failed", "error": str(exc)}), 500
+
+
+
 try:
     predictor.load()
 except Exception as error:

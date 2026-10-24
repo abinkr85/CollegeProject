@@ -202,6 +202,70 @@ export const scanAndCropIdCard = async ({ imageBuffer, imageDataUrl, orientation
   }
 }
 
+export const scanAndCropIdCardMulti = async ({
+  frontBuffer,
+  frontDataUrl,
+  backBuffer,
+  backDataUrl,
+  orientation = 'vertical',
+}) => {
+  const frontBuf = frontBuffer || toBuffer(frontDataUrl)
+  if (!frontBuf) {
+    throw new BadRequestError('Front image is required for scanning')
+  }
+
+  const frontBase64 = `data:image/jpeg;base64,${frontBuf.toString('base64')}`
+  const backBuf = backBuffer || toBuffer(backDataUrl)
+  const backBase64 = backBuf ? `data:image/jpeg;base64,${backBuf.toString('base64')}` : ''
+
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), config.NLP_TIMEOUT_MS || 12000)
+
+    const response = await fetch(`${config.NLP_SERVICE_URL}/idcard_recognition_multi_page`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-NLP-Secret': config.RELOAD_SECRET,
+      },
+      body: JSON.stringify({
+        base64_1: frontBase64,
+        base64_2: backBase64,
+        orientation,
+      }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    if (response.ok) {
+      const data = await response.json()
+      return data
+    } else {
+      const errText = await response.text()
+      logger.warn({ status: response.status, errText }, 'NLP OpenCV multi-page crop returned non-200')
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, 'NLP OpenCV multi-page crop request failed or timed out')
+  }
+
+  return {
+    Status: 'Ok',
+    success: true,
+    front: {
+      success: true,
+      detected: false,
+      image: frontBase64,
+    },
+    back: backBase64
+      ? {
+          success: true,
+          detected: false,
+          image: backBase64,
+        }
+      : null,
+  }
+}
+
 export const uploadIdCard = async (
   userId,
   { studentIdNumber, frontBuffer, backBuffer, frontDataUrl, backDataUrl, department, year }

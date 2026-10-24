@@ -25,6 +25,11 @@ router.post(
   asyncHandler(controller.scanAndCropCard)
 )
 router.post(
+  '/id-card/scan-crop-multi',
+  uploadIdCardPair,
+  asyncHandler(controller.scanAndCropIdCardMulti)
+)
+router.post(
   '/id-card',
   uploadIdCardPair,
   validate({ body: uploadIdCardSchema }),

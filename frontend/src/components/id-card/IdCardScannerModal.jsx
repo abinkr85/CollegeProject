@@ -1,25 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  ArrowLeft,
+  ArrowRight,
   Camera,
   Check,
   CheckCircle2,
-  Clock,
-  Eye,
-  FileText,
+  ChevronRight,
+  Copy,
   FlipHorizontal,
+  Image as ImageIcon,
   Info,
   Loader2,
-  Maximize2,
   RefreshCw,
-  RotateCcw,
+  RotateCw,
   ShieldCheck,
   Sparkles,
   Upload,
   User,
   X,
-  Zap,
-  ZapOff,
   ZoomIn
 } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -27,9 +26,9 @@ import Button from '../ui/Button';
 import { parseIdCardText } from '../../utils/idCardParser';
 import { scanAndCropIdCardApi } from '../../api/userApi';
 
-// Dynamic import or fallback for client-side OCR
+// Lazy loader for OCR to keep mobile load instant & zero-lag
 let tesseractWorkerPromise = null;
-async function runOcrOnImage(imageSrc) {
+async function extractTextFromCard(imageSrc) {
   try {
     const { createWorker } = await import('tesseract.js');
     if (!tesseractWorkerPromise) {
@@ -39,62 +38,15 @@ async function runOcrOnImage(imageSrc) {
       })();
     }
     const worker = await tesseractWorkerPromise;
-    const ret = await worker.recognize(imageSrc);
-    return ret.data.text || '';
+    // Fast recognition without blocking
+    const ret = await Promise.race([
+      worker.recognize(imageSrc),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('OCR Timeout')), 6000))
+    ]);
+    return ret?.data?.text || '';
   } catch (err) {
-    console.warn('Client OCR notice:', err);
+    console.warn('OCR background extract notice:', err?.message || err);
     return '';
-  }
-}
-
-// Discrete Laplacian edge sharpness calculation on canvas
-function calculateSharpness(ctx, width, height) {
-  try {
-    const sampleWidth = Math.min(width, 160);
-    const sampleHeight = Math.min(height, 120);
-    const imgData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
-    const data = imgData.data;
-
-    let totalLuminance = 0;
-    const gray = new Float32Array(sampleWidth * sampleHeight);
-
-    for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-      const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-      gray[j] = l;
-      totalLuminance += l;
-    }
-
-    const avgLuminance = totalLuminance / (sampleWidth * sampleHeight);
-
-    let sumLaplacian = 0;
-    let sumLaplacianSq = 0;
-    let count = 0;
-
-    for (let y = 1; y < sampleHeight - 1; y += 2) {
-      for (let x = 1; x < sampleWidth - 1; x += 2) {
-        const idx = y * sampleWidth + x;
-        const lap =
-          gray[idx - sampleWidth] +
-          gray[idx + sampleWidth] +
-          gray[idx - 1] +
-          gray[idx + 1] -
-          4 * gray[idx];
-
-        sumLaplacian += lap;
-        sumLaplacianSq += lap * lap;
-        count++;
-      }
-    }
-
-    const meanLaplacian = sumLaplacian / count;
-    const variance = sumLaplacianSq / count - meanLaplacian * meanLaplacian;
-
-    return {
-      sharpness: Math.round(variance),
-      brightness: Math.round(avgLuminance)
-    };
-  } catch {
-    return { sharpness: 50, brightness: 120 };
   }
 }
 
@@ -106,529 +58,161 @@ export default function IdCardScannerModal({
   currentDepartment = '',
   currentYear = ''
 }) {
-  const [step, setStep] = useState('front'); // 'front' | 'back' | 'review'
-  const stepRef = useRef('front');
-  const [orientation, setOrientation] = useState('vertical'); // 'vertical' | 'horizontal'
-  const [autoCapture, setAutoCapture] = useState(true); // Auto camera scan active by default
-  const autoCaptureRef = useRef(true);
+  // Navigation: 'front' (1) -> 'back' (2) -> 'review' (3)
+  const [step, setStep] = useState('front');
 
+  // Captured card images
   const [frontImage, setFrontImage] = useState(null);
   const [backImage, setBackImage] = useState(null);
-  const frontImageRef = useRef(null);
-  const backImageRef = useRef(null);
-  const [stepNotice, setStepNotice] = useState('');
+  const [frontDetected, setFrontDetected] = useState(false);
+  const [backDetected, setBackDetected] = useState(false);
 
-  // Extracted and form values
-  const [studentIdInput, setStudentIdInput] = useState(currentStudentId);
-  const [nameInput, setNameInput] = useState('');
-  const [departmentInput, setDepartmentInput] = useState(currentDepartment);
-  const [batchInput, setBatchInput] = useState('');
-  const [yearInput, setYearInput] = useState(currentYear);
-  const [bloodGroupInput, setBloodGroupInput] = useState('');
-  const [emergencyPhoneInput, setEmergencyPhoneInput] = useState('');
-
-  // OCR state
-  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
-  const [ocrStatusText, setOcrStatusText] = useState('');
-  const [extractedData, setExtractedData] = useState(null);
-
-  // Camera & Shutter state
-  const [hasCamera, setHasCamera] = useState(true);
-  const [cameraError, setCameraError] = useState(null);
-  const [cameras, setCameras] = useState([]);
-  const [selectedCameraId, setSelectedCameraId] = useState('');
-  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  // Loading & status states
+  const [isProcessingFront, setIsProcessingFront] = useState(false);
+  const [isProcessingBack, setIsProcessingBack] = useState(false);
+  const [isExtractingOcr, setIsExtractingOcr] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [countdown, setCountdown] = useState(null);
-  const [flashActive, setFlashActive] = useState(false);
+  const [statusNotice, setStatusNotice] = useState('');
 
-  // Live quality & auto-capture metrics
-  const [isSteady, setIsSteady] = useState(false);
-  const [autoCaptureProgress, setAutoCaptureProgress] = useState(0);
+  // Step 3 Review Form Fields
+  const [studentIdInput, setStudentIdInput] = useState(currentStudentId || '');
+  const [departmentInput, setDepartmentInput] = useState(currentDepartment || '');
+  const [yearInput, setYearInput] = useState(currentYear || '');
+  const [emergencyPhoneInput, setEmergencyPhoneInput] = useState('');
+  const [reviewSide, setReviewSide] = useState('front'); // 'front' | 'back'
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
 
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const analysisCanvasRef = useRef(null);
-  const animationFrameRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const containerRef = useRef(null);
-  const reticleRef = useRef(null);
+  // Hidden native file input refs (triggers native iOS / Android camera & gallery)
+  const frontCameraRef = useRef(null);
+  const frontGalleryRef = useRef(null);
+  const backCameraRef = useRef(null);
+  const backGalleryRef = useRef(null);
 
-  const autoCaptureCounterRef = useRef(0);
-  const warmupFramesRef = useRef(8); // Warmup frames to let camera exposure stabilize
-  const isCapturingRef = useRef(false);
-  const lastClarityCheckRef = useRef(0);
-
-  // Sync stepRef with step
-  useEffect(() => {
-    stepRef.current = step;
-  }, [step]);
-
-  // Sync autoCaptureRef with autoCapture
-  useEffect(() => {
-    autoCaptureRef.current = autoCapture;
-  }, [autoCapture]);
-
-  // Reset state on open
+  // Sync initial props
   useEffect(() => {
     if (isOpen) {
-      toast.dismiss();
       setStep('front');
-      stepRef.current = 'front';
       setFrontImage(null);
       setBackImage(null);
-      frontImageRef.current = null;
-      backImageRef.current = null;
-      setStepNotice('');
-      setStudentIdInput(currentStudentId);
-      setDepartmentInput(currentDepartment);
-      setYearInput(currentYear);
-      setExtractedData(null);
-      setAutoCapture(true);
-      autoCaptureRef.current = true;
-      setAutoCaptureProgress(0);
-      autoCaptureCounterRef.current = 0;
-      warmupFramesRef.current = 8;
-      isCapturingRef.current = false;
-      lastClarityCheckRef.current = 0;
-      startCamera();
-    } else {
-      stopCamera();
-      frontImageRef.current = null;
-      backImageRef.current = null;
-      setStepNotice('');
-      toast.dismiss();
+      setFrontDetected(false);
+      setBackDetected(false);
+      setStudentIdInput(currentStudentId || '');
+      setDepartmentInput(currentDepartment || 'Bachelor of Computer Application (BCA)');
+      setYearInput(currentYear || '3rd Year');
+      setEmergencyPhoneInput('');
+      setStatusNotice('');
+      setReviewSide('front');
     }
-    return () => {
-      stopCamera();
-      toast.dismiss();
-    };
-  }, [isOpen]);
+  }, [isOpen, currentStudentId, currentDepartment, currentYear]);
 
-  // Discover camera devices
-  const discoverCameras = async () => {
-    try {
-      if (!navigator.mediaDevices?.enumerateDevices) return;
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
-      setCameras(videoDevices);
-      if (videoDevices.length > 0 && !selectedCameraId) {
-        const backCam = videoDevices.find((d) =>
-          /back|rear|environment/i.test(d.label)
-        );
-        setSelectedCameraId(backCam ? backCam.deviceId : videoDevices[0].deviceId);
-      }
-    } catch (err) {
-      console.warn('Could not list cameras:', err);
-    }
-  };
+  if (!isOpen) return null;
 
-  // Start HD camera stream
-  const startCamera = async (deviceId = selectedCameraId) => {
-    try {
-      setIsCameraStarting(true);
-      setCameraError(null);
-      stopCamera();
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setHasCamera(false);
-        setCameraError('Camera is not supported on this browser.');
-        setIsCameraStarting(false);
-        return;
-      }
-
-      const constraints = {
-        video: {
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' })
-        },
-        audio: false
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      setHasCamera(true);
-      setIsCameraStarting(false);
-      await discoverCameras();
-      startClarityLoop();
-    } catch (err) {
-      console.error('Camera start error:', err);
-      setIsCameraStarting(false);
-      setHasCamera(false);
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraError('Camera permission was denied. You can upload your ID card photos directly below.');
-      } else {
-        setCameraError('Camera unavailable: ' + (err.message || 'Please use file upload.'));
-      }
-    }
-  };
-
-  const stopCamera = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  // Switch camera toggle
-  const switchCamera = () => {
-    if (cameras.length < 2) return;
-    const currentIndex = cameras.findIndex((c) => c.deviceId === selectedCameraId);
-    const nextDeviceId = cameras[(currentIndex + 1) % cameras.length].deviceId;
-    setSelectedCameraId(nextDeviceId);
-    startCamera(nextDeviceId);
-  };
-
-  // Real-time clarity check & auto-capture loop
-  const startClarityLoop = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    lastClarityCheckRef.current = 0;
-
-    const loop = (timestamp) => {
-      if (stepRef.current === 'review' || !videoRef.current) {
-        return;
-      }
-
-      if (videoRef.current.readyState < 2) {
-        animationFrameRef.current = requestAnimationFrame(loop);
-        return;
-      }
-
-      // Throttle sharpness calculation to every 120ms to prevent mobile CPU/thread stalling
-      if (timestamp - lastClarityCheckRef.current >= 120) {
-        lastClarityCheckRef.current = timestamp;
-
-        const video = videoRef.current;
-        const canvas = analysisCanvasRef.current || document.createElement('canvas');
-        analysisCanvasRef.current = canvas;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        const w = 160;
-        const h = Math.round((video.videoHeight / video.videoWidth) * 160) || 120;
-        canvas.width = w;
-        canvas.height = h;
-
-        ctx.drawImage(video, 0, 0, w, h);
-        const { sharpness } = calculateSharpness(ctx, w, h);
-
-        // Quality score: calibrated for steady ID alignment
-        const score = Math.min(100, Math.max(20, Math.round((sharpness / 35) * 100)));
-
-        // Camera warmup period to allow sensor exposure/focus to settle
-        if (warmupFramesRef.current > 0) {
-          warmupFramesRef.current -= 1;
-        } else {
-          const steady = score >= 35;
-          setIsSteady((prev) => (prev !== steady ? steady : prev));
-
-          // WhatsApp-style Auto Capture Logic
-          if (autoCaptureRef.current && steady && !isCapturingRef.current && stepRef.current !== 'review') {
-            autoCaptureCounterRef.current += 1;
-            // 7 checks at 120ms = ~840ms of steady card alignment
-            const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 7) * 100));
-            setAutoCaptureProgress(pct);
-
-            if (pct >= 100) {
-              autoCaptureCounterRef.current = 0;
-              setAutoCaptureProgress(0);
-              takeSnapshot(true);
-            }
-          } else {
-            if (autoCaptureCounterRef.current > 0) {
-              autoCaptureCounterRef.current = Math.max(0, autoCaptureCounterRef.current - 1);
-              const pct = Math.min(100, Math.round((autoCaptureCounterRef.current / 7) * 100));
-              setAutoCaptureProgress(pct);
-            }
-          }
-        }
-      }
-
-      animationFrameRef.current = requestAnimationFrame(loop);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(loop);
-  };
-
-  /**
-   * WhatsApp Document Scan: Crop out background room & save ONLY the card rectangle!
-   */
-  const takeSnapshot = async (isAuto = false) => {
-    if (isCapturingRef.current) return;
-    if (stepRef.current === 'review') return;
-    if (stepRef.current === 'front' && frontImageRef.current) return;
-    if (stepRef.current === 'back' && backImageRef.current) return;
-    if (!videoRef.current || !containerRef.current || !reticleRef.current) return;
-    isCapturingRef.current = true;
-
-    try {
-      const video = videoRef.current;
-      if (!video.videoWidth || !video.videoHeight) {
-        isCapturingRef.current = false;
-        return;
-      }
-
-      // Visual camera shutter flash & haptic feedback
-      setFlashActive(true);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate([50, 40, 50]); } catch (_) {}
-      }
-      setTimeout(() => setFlashActive(false), 180);
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const reticleRect = reticleRef.current.getBoundingClientRect();
-
-      const vWidth = video.videoWidth || 1920;
-      const vHeight = video.videoHeight || 1080;
-
-      // Calculate object-cover scale and offsets
-      const videoAspect = vWidth / vHeight;
-      const containerAspect = containerRect.width / containerRect.height;
-
-      let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0;
-
-      if (videoAspect > containerAspect) {
-        renderedHeight = containerRect.height;
-        renderedWidth = containerRect.height * videoAspect;
-        offsetX = (renderedWidth - containerRect.width) / 2;
-      } else {
-        renderedWidth = containerRect.width;
-        renderedHeight = containerRect.width / videoAspect;
-        offsetY = (renderedHeight - containerRect.height) / 2;
-      }
-
-      const scaleX = vWidth / renderedWidth;
-      const scaleY = vHeight / renderedHeight;
-
-      // Calculate crop rectangle strictly inside the video source
-      const cropX = Math.max(0, Math.round(((reticleRect.left - containerRect.left) + offsetX) * scaleX));
-      const cropY = Math.max(0, Math.round(((reticleRect.top - containerRect.top) + offsetY) * scaleY));
-      const cropW = Math.min(vWidth - cropX, Math.round(reticleRect.width * scaleX));
-      const cropH = Math.min(vHeight - cropY, Math.round(reticleRect.height * scaleY));
-
-      // Frame with margin around reticle so OpenCV can detect the physical card corners
-      const marginRatio = 0.20;
-      const expandedX = Math.max(0, Math.round(cropX - cropW * marginRatio));
-      const expandedY = Math.max(0, Math.round(cropY - cropH * marginRatio));
-      const expandedW = Math.min(vWidth - expandedX, Math.round(cropW * (1 + 2 * marginRatio)));
-      const expandedH = Math.min(vHeight - expandedY, Math.round(cropH * (1 + 2 * marginRatio)));
-
-      const canvas = document.createElement('canvas');
-      canvas.width = expandedW;
-      canvas.height = expandedH;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, expandedX, expandedY, expandedW, expandedH, 0, 0, expandedW, expandedH);
-
-      const rawDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-      const activeStep = stepRef.current;
-
-      setStepNotice('🔍 Verifying ID card boundary...');
-
-      // Call Python OpenCV Service via Node backend
-      let finalDataUrl = rawDataUrl;
-      let cardDetected = false;
-      try {
-        const cropRes = await scanAndCropIdCardApi({
-          image: rawDataUrl,
-          orientation,
-        });
-        if (cropRes?.image) {
-          finalDataUrl = cropRes.image;
-          cardDetected = Boolean(cropRes.detected);
-          if (cardDetected) {
-            setStepNotice('✓ 4-Corner Card Detected & Deskewed!');
-          }
-        }
-      } catch (err) {
-        console.warn('OpenCV deskew fallback:', err);
-      }
-
-      // CRITICAL: Auto-capture MUST strictly trigger only when a valid ID card is detected!
-      // If no valid card contour was found (e.g. bedsheet, blanket, table texture, or blank background),
-      // reject auto-capture, reset the auto-capture progress, and keep the scanner live.
-      if (isAuto && !cardDetected) {
-        setStepNotice('⚠️ No ID card detected. Keep card steady inside frame.');
-        setTimeout(() => setStepNotice(''), 2200);
-        isCapturingRef.current = false;
-        autoCaptureCounterRef.current = 0;
-        setAutoCaptureProgress(0);
-        return;
-      }
-
-      await processCapturedImage(finalDataUrl, activeStep);
-    } catch (err) {
-      console.error('Take snapshot error:', err);
-      isCapturingRef.current = false;
-    }
-  };
-
-  // Shutter with optional 3-sec timer
-  const handleShutterClick = (useTimer = false) => {
-    if (useTimer) {
-      setCountdown(3);
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setCountdown(null);
-            takeSnapshot(false);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      takeSnapshot(false);
-    }
-  };
-
-  // Process captured image and run OCR pattern extraction
-  const processCapturedImage = async (dataUrl, currentStep) => {
-    toast.dismiss();
-
-    if (currentStep === 'front') {
-      if (frontImageRef.current) return;
-      frontImageRef.current = dataUrl;
-      setFrontImage(dataUrl);
-      setStep('back');
-      stepRef.current = 'back';
-
-      warmupFramesRef.current = 10;
-      setStepNotice('✓ Front Captured! Align and scan Back Side');
-      setTimeout(() => setStepNotice(''), 2500);
-
-      // Keep auto-capture locked for 1.8s so user has time to flip card
-      setTimeout(() => {
-        isCapturingRef.current = false;
-        autoCaptureCounterRef.current = 0;
-      }, 1800);
-
-      // Run background OCR extraction on Front side (cropped card)
-      setIsProcessingOcr(true);
-      setOcrStatusText('Scanning Roll No & Course details...');
-
-      try {
-        const text = await runOcrOnImage(dataUrl);
-        const parsed = parseIdCardText(text);
-
-        if (parsed.studentIdNumber) {
-          setStudentIdInput(parsed.studentIdNumber);
-        }
-        if (parsed.name) {
-          setNameInput(parsed.name);
-        }
-        if (parsed.department) {
-          setDepartmentInput(parsed.department);
-        }
-        if (parsed.batch) {
-          setBatchInput(parsed.batch);
-        }
-        if (parsed.bloodGroup) {
-          setBloodGroupInput(parsed.bloodGroup);
-        }
-        if (parsed.validUpto) {
-          setYearInput(parsed.validUpto.includes('2026') ? '3rd Year' : 'Current Year');
-        }
-        setExtractedData(parsed);
-      } catch (err) {
-        console.warn('OCR processing notice:', err);
-      } finally {
-        setIsProcessingOcr(false);
-      }
-    } else if (currentStep === 'back') {
-      if (backImageRef.current) return;
-      backImageRef.current = dataUrl;
-      setBackImage(dataUrl);
-      setStep('review');
-      stepRef.current = 'review';
-      setStepNotice('');
-      stopCamera();
-      isCapturingRef.current = false;
-
-      // Run OCR on Back side to capture emergency contact / parent info
-      try {
-        const backText = await runOcrOnImage(dataUrl);
-        const backParsed = parseIdCardText(backText);
-        if (backParsed.emergencyContact) {
-          setEmergencyPhoneInput(backParsed.emergencyContact);
-        }
-      } catch (err) {
-        console.warn('Back OCR notice:', err);
-      }
-    } else {
-      isCapturingRef.current = false;
-    }
-  };
-
-  // File upload handler
-  const handleFileUpload = (e, targetSide) => {
-    const file = e.target.files?.[0];
+  // Process captured/selected file with Python OpenCV Service
+  const handleFileSelected = (file, side) => {
     if (!file) return;
 
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Please choose a valid photo (JPEG, PNG, or WebP).');
+      toast.error('Please choose a valid ID card photo (JPEG, PNG, or WebP).');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
-      const dataUrl = event.target.result;
-      setStepNotice('🔍 Processing card image with OpenCV...');
-      let finalUrl = dataUrl;
-      try {
-        const res = await scanAndCropIdCardApi({ image: dataUrl, orientation });
-        if (res?.image) {
-          finalUrl = res.image;
-          if (res.detected) {
-            setStepNotice('✓ Card Edge Detected & Straightened!');
-          }
+    reader.onload = async (e) => {
+      const rawDataUrl = e.target.result;
+
+      if (side === 'front') {
+        setIsProcessingFront(true);
+        setStatusNotice('🔍 Straightening & deskewing card edges...');
+        try {
+          const res = await scanAndCropIdCardApi({ image: rawDataUrl, orientation: 'vertical' });
+          const finalUrl = res?.image || rawDataUrl;
+          const detected = Boolean(res?.detected);
+          setFrontImage(finalUrl);
+          setFrontDetected(detected);
+          setStatusNotice(detected ? '✓ 4-Corner Card Straightened!' : '✓ Card Photo Loaded');
+
+          // Run background OCR on Front for Roll No & Course
+          setIsExtractingOcr(true);
+          extractTextFromCard(finalUrl)
+            .then((text) => {
+              if (text) {
+                const parsed = parseIdCardText(text);
+                if (parsed.studentIdNumber) {
+                  setStudentIdInput(parsed.studentIdNumber);
+                  toast.success(`Detected Roll No: ${parsed.studentIdNumber}`);
+                }
+                if (parsed.department) {
+                  setDepartmentInput(parsed.department);
+                }
+                if (parsed.validUpto) {
+                  setYearInput(parsed.validUpto.includes('2026') ? '3rd Year' : 'Current Year');
+                }
+              }
+            })
+            .finally(() => setIsExtractingOcr(false));
+        } catch (err) {
+          console.warn('OpenCV deskew fallback:', err);
+          setFrontImage(rawDataUrl);
+        } finally {
+          setIsProcessingFront(false);
+          setTimeout(() => setStatusNotice(''), 2500);
         }
-      } catch (err) {
-        console.warn('File upload crop fallback:', err);
+      } else {
+        setIsProcessingBack(true);
+        setStatusNotice('🔍 Straightening & deskewing card edges...');
+        try {
+          const res = await scanAndCropIdCardApi({ image: rawDataUrl, orientation: 'vertical' });
+          const finalUrl = res?.image || rawDataUrl;
+          const detected = Boolean(res?.detected);
+          setBackImage(finalUrl);
+          setBackDetected(detected);
+          setStatusNotice(detected ? '✓ 4-Corner Card Straightened!' : '✓ Card Photo Loaded');
+
+          // Run background OCR on Back for Emergency Phone
+          extractTextFromCard(finalUrl).then((text) => {
+            if (text) {
+              const parsed = parseIdCardText(text);
+              if (parsed.emergencyContact) {
+                setEmergencyPhoneInput(parsed.emergencyContact);
+              }
+            }
+          });
+        } catch (err) {
+          console.warn('OpenCV deskew fallback:', err);
+          setBackImage(rawDataUrl);
+        } finally {
+          setIsProcessingBack(false);
+          setTimeout(() => setStatusNotice(''), 2500);
+        }
       }
-      processCapturedImage(finalUrl, targetSide);
     };
     reader.readAsDataURL(file);
   };
 
-  // Final submission
-  const handleSubmit = async () => {
+  // Submit verified ID Card payload to backend
+  const handleFinalSubmit = async () => {
     if (!frontImage || !backImage) {
       toast.error('Both front and back ID card images are required.');
       return;
     }
 
     if (!studentIdInput || studentIdInput.trim().length < 2) {
-      toast.error('Please confirm your Student ID / Roll Number (e.g. 23BC023).');
+      toast.error('Please confirm your Student Roll Number (e.g. 23BC023).');
       return;
     }
 
     try {
       setIsUploading(true);
       await onSuccess({
-        studentIdNumber: studentIdInput.trim(),
+        studentIdNumber: studentIdInput.trim().toUpperCase(),
         frontImage,
         backImage,
         department: departmentInput,
         year: yearInput
       });
       setIsUploading(false);
+      toast.success('Institutional Student ID successfully verified! 🛡️');
       onClose();
     } catch (err) {
       setIsUploading(false);
@@ -640,24 +224,92 @@ export default function IdCardScannerModal({
     }
   };
 
-  if (!isOpen) return null;
+  const handleCopyRollNo = () => {
+    if (!studentIdInput) return;
+    navigator.clipboard.writeText(studentIdInput);
+    setCopiedId(true);
+    toast.success(`Copied: ${studentIdInput}`);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full h-full sm:h-auto sm:max-w-2xl sm:max-h-[92vh] bg-slate-900 border-0 sm:border sm:border-slate-800 sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/95 backdrop-blur-md animate-fade-in">
+      {/* Hidden Native File Inputs */}
+      {/* Front */}
+      <input
+        ref={frontCameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          handleFileSelected(e.target.files?.[0], 'front');
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={frontGalleryRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          handleFileSelected(e.target.files?.[0], 'front');
+          e.target.value = '';
+        }}
+      />
+      {/* Back */}
+      <input
+        ref={backCameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          handleFileSelected(e.target.files?.[0], 'back');
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={backGalleryRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          handleFileSelected(e.target.files?.[0], 'back');
+          e.target.value = '';
+        }}
+      />
+
+      {/* FULL-SCREEN CONTAINER (Mobile-Native full bleed, clean rounded box on desktop) */}
+      <div className="relative w-full h-full sm:h-auto sm:max-w-xl sm:max-h-[92vh] bg-slate-900 border-0 sm:border sm:border-slate-800 sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden text-white">
         
-        {/* COMPACT CLEAN HEADER (Optimized for Mobile) */}
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-800 bg-slate-950/80 shrink-0">
+        {/* COMPACT TOP NAVIGATION BAR */}
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-800 bg-slate-950/90 shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-blue-600/90 text-white rounded-xl shadow-sm">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
+            {step !== 'front' ? (
+              <button
+                type="button"
+                onClick={() => setStep(step === 'review' ? 'back' : 'front')}
+                className="p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                aria-label="Previous Step"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            ) : (
+              <div className="p-2 bg-blue-600/90 text-white rounded-xl shadow-sm">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+            )}
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white leading-tight">
-                Student ID Scanner
+                Student ID Verification
               </h2>
               <p className="text-[11px] text-slate-400">
-                {step === 'front' ? 'Step 1 of 2: Front Side' : step === 'back' ? 'Step 2 of 2: Back Side' : 'Step 3: Review Details'}
+                {step === 'front'
+                  ? 'Step 1 of 3: Front Side'
+                  : step === 'back'
+                  ? 'Step 2 of 3: Back Side'
+                  : 'Step 3 of 3: Confirm Details'}
               </p>
             </div>
           </div>
@@ -671,9 +323,11 @@ export default function IdCardScannerModal({
           </button>
         </div>
 
-        {/* RESPONSIVE SEGMENTED STEP BAR (No Truncation) */}
-        <div className="grid grid-cols-3 border-b border-slate-800 text-[11px] sm:text-xs font-semibold select-none bg-slate-950/40 shrink-0">
-          <div
+        {/* MODERN 3-STEP SEGMENTED PROGRESS BAR */}
+        <div className="grid grid-cols-3 border-b border-slate-800 text-[11px] sm:text-xs font-semibold select-none bg-slate-950/60 shrink-0">
+          <button
+            type="button"
+            onClick={() => setStep('front')}
             className={`py-2 px-1 text-center border-b-2 flex items-center justify-center gap-1.5 transition ${
               step === 'front'
                 ? 'border-blue-500 text-blue-400 bg-blue-950/30'
@@ -682,13 +336,20 @@ export default function IdCardScannerModal({
                 : 'border-transparent text-slate-500'
             }`}
           >
-            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold bg-current text-slate-950">
+            <span
+              className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                frontImage ? 'bg-emerald-500 text-slate-950' : step === 'front' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
               {frontImage ? '✓' : '1'}
             </span>
-            <span>Front Side</span>
-          </div>
+            <span>Front</span>
+          </button>
 
-          <div
+          <button
+            type="button"
+            disabled={!frontImage}
+            onClick={() => frontImage && setStep('back')}
             className={`py-2 px-1 text-center border-b-2 flex items-center justify-center gap-1.5 transition ${
               step === 'back'
                 ? 'border-blue-500 text-blue-400 bg-blue-950/30'
@@ -697,472 +358,514 @@ export default function IdCardScannerModal({
                 : 'border-transparent text-slate-500'
             }`}
           >
-            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold bg-current text-slate-950">
+            <span
+              className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                backImage ? 'bg-emerald-500 text-slate-950' : step === 'back' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
               {backImage ? '✓' : '2'}
             </span>
-            <span>Back Side</span>
-          </div>
+            <span>Back</span>
+          </button>
 
-          <div
+          <button
+            type="button"
+            disabled={!frontImage || !backImage}
+            onClick={() => frontImage && backImage && setStep('review')}
             className={`py-2 px-1 text-center border-b-2 flex items-center justify-center gap-1.5 transition ${
               step === 'review'
                 ? 'border-blue-500 text-blue-400 bg-blue-950/30'
                 : 'border-transparent text-slate-500'
             }`}
           >
-            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold bg-current text-slate-950">
+            <span
+              className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                step === 'review' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
               3
             </span>
             <span>Verify</span>
-          </div>
+          </button>
         </div>
 
-        {/* MAIN BODY AREA */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-5 flex flex-col justify-between">
-          {step !== 'review' ? (
-            <div className="flex-1 flex flex-col items-center justify-between">
-              
-              {/* VIEWFINDER CONTAINER */}
-              <div
-                ref={containerRef}
-                className="relative w-full flex-1 min-h-[320px] max-h-[58vh] bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-2xl"
-              >
-                {/* Visual Camera Shutter Flash */}
-                {flashActive && (
-                  <div className="absolute inset-0 bg-white z-40 animate-out fade-out duration-200 pointer-events-none" />
-                )}
+        {/* MAIN INTERACTIVE BODY (Scrollable on small mobile screens) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col justify-between">
+          
+          {/* STEP 1: FRONT SIDE CAPTURE */}
+          {step === 'front' && (
+            <div className="flex-1 flex flex-col justify-between space-y-4 animate-fade-in">
+              <div className="text-center space-y-1">
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  Front Side of ID Card
+                </h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Align the front of your student ID showing your <strong>Photo</strong>, <strong>Roll No (e.g. 23BC023)</strong>, and <strong>Barcode</strong>.
+                </p>
+              </div>
 
-                {/* In-viewfinder floating status badge */}
-                {stepNotice && (
-                  <div className="absolute top-12 inset-x-4 flex justify-center z-30 pointer-events-none animate-bounce">
-                    <div className="bg-emerald-600/95 text-white font-bold text-xs px-3.5 py-1.5 rounded-full shadow-2xl flex items-center gap-1.5 border border-emerald-300 backdrop-blur-md">
-                      <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-                      <span>{stepNotice}</span>
+              {/* CARD PREVIEW / CAPTURE FRAME */}
+              <div className="flex items-center justify-center py-1">
+                <div className="relative w-full max-w-[260px] aspect-[1/1.58] rounded-2xl border-2 border-dashed border-blue-500/50 bg-slate-950 overflow-hidden shadow-2xl flex flex-col items-center justify-center p-3 transition-all duration-300">
+                  {isProcessingFront ? (
+                    <div className="flex flex-col items-center gap-2 p-4 text-center">
+                      <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                      <span className="text-xs font-semibold text-blue-200">
+                        Detecting & Deskewing Card...
+                      </span>
                     </div>
-                  </div>
-                )}
-
-                {/* Countdown Timer Overlay */}
-                {countdown !== null && (
-                  <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-                    <span className="text-7xl font-extrabold text-white animate-ping">
-                      {countdown}
-                    </span>
-                  </div>
-                )}
-
-                {hasCamera ? (
-                  <>
-                    <video
-                      ref={videoRef}
-                      playsInline
-                      muted
-                      autoPlay
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-
-                    {/* Translucent Dark Mask Outside Reticle (WhatsApp Document Style) */}
-                    <div className="absolute inset-0 bg-black/55 pointer-events-none" />
-
-                    {/* CARD RETICLE CUTOUT (Aspect 1 : 1.58 Portrait) */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-3">
-                      <div
-                        ref={reticleRef}
-                        className={`relative transition-all duration-300 rounded-2xl border-2 shadow-2xl ${
-                          orientation === 'vertical'
-                            ? 'h-[92%] aspect-[1/1.58] max-w-[270px]'
-                            : 'w-[88%] aspect-[1.58/1] max-h-[260px]'
-                        } ${
-                          isSteady
-                            ? 'border-emerald-400 ring-4 ring-emerald-500/25'
-                            : 'border-cyan-400/80 ring-2 ring-cyan-500/20'
-                        }`}
-                      >
-                        {/* Clear Cutout */}
-                        <div className="absolute inset-0 bg-transparent" />
-
-                        {/* WhatsApp Document Scanning Corner Brackets */}
-                        <div className={`absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 rounded-tl-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
-                        <div className={`absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 rounded-tr-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
-                        <div className={`absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 rounded-bl-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
-                        <div className={`absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 rounded-br-xl transition-colors ${isSteady ? 'border-emerald-400' : 'border-cyan-400'}`} />
-
-                        {/* Animated Laser Scanning Beam */}
-                        <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-lg shadow-cyan-400/80 animate-pulse top-1/2" />
-
-                        {/* Top Alignment Guide Title */}
-                        <div className="absolute top-2 inset-x-0 flex justify-center">
-                          <span className="bg-slate-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white border border-slate-700/80 shadow">
-                            {step === 'front' ? 'ALIGN FRONT (PHOTO & 23BC023)' : 'ALIGN BACK (EMERGENCY NO)'}
+                  ) : frontImage ? (
+                    <>
+                      <img
+                        src={frontImage}
+                        alt="ID Card Front"
+                        className="w-full h-full object-contain rounded-xl"
+                      />
+                      <div className="absolute top-2.5 right-2.5 bg-emerald-600/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                        <Check className="w-3 h-3" />
+                        <span>Front Saved</span>
+                      </div>
+                      {frontDetected && (
+                        <div className="absolute bottom-2.5 inset-x-2 text-center">
+                          <span className="bg-slate-900/90 text-emerald-400 text-[10px] font-medium px-2 py-0.5 rounded-full border border-emerald-500/40 shadow backdrop-blur-sm">
+                            ✓ 4-Corner Deskewed
                           </span>
                         </div>
-
-                        {/* Auto-Capture Progress Bar / Status Pill */}
-                        <div className="absolute bottom-2 inset-x-0 flex justify-center px-2">
-                          {autoCapture ? (
-                            <div className="bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-white border border-slate-700 shadow flex items-center gap-1.5">
-                              {autoCaptureProgress > 0 ? (
-                                <>
-                                  <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-emerald-400 transition-all duration-75"
-                                      style={{ width: `${autoCaptureProgress}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-emerald-400 font-mono text-[10px]">
-                                    Capturing...
-                                  </span>
-                                </>
-                              ) : isSteady ? (
-                                <span className="text-emerald-400 flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3" /> Hold still...
-                                </span>
-                              ) : (
-                                <span className="text-slate-300">
-                                  Fit card in frame
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="bg-slate-950/85 px-3 py-1 rounded-full text-[10px] font-semibold text-slate-300 border border-slate-700">
-                              Tap shutter to capture
-                            </span>
-                          )}
-                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* Blank Card Silhouette */
+                    <div className="flex flex-col items-center justify-between h-full w-full py-3 text-slate-600 select-none">
+                      <div className="w-full border-b border-slate-800 pb-1 text-center">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                          HARSHA INSTITUTIONS
+                        </span>
+                      </div>
+                      <div className="w-20 h-24 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                        <User className="w-10 h-10 opacity-40" />
+                      </div>
+                      <div className="space-y-1 w-full flex flex-col items-center">
+                        <div className="h-2 w-28 bg-slate-800 rounded" />
+                        <div className="h-2 w-20 bg-slate-800/80 rounded" />
+                      </div>
+                      <div className="w-full border-t border-slate-800 pt-1 text-center">
+                        <span className="text-[8px] font-mono tracking-widest text-slate-500">
+                          |||| 23BC023 ||||
+                        </span>
                       </div>
                     </div>
+                  )}
+                </div>
+              </div>
 
-                    {/* SLEEK FLOATING TOP HUD (Mobile-friendly pills) */}
-                    <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-auto z-20 text-xs">
-                      {/* Auto Capture Toggle */}
-                      <button
-                        onClick={() => {
-                          const nextVal = !autoCapture;
-                          setAutoCapture(nextVal);
-                          autoCaptureRef.current = nextVal;
-                        }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full backdrop-blur-md text-[11px] font-semibold border transition ${
-                          autoCapture
-                            ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300'
-                            : 'bg-slate-950/80 border-slate-700 text-slate-400'
-                        }`}
-                        title="Toggle automatic capture when steady"
-                      >
-                        {autoCapture ? <Zap className="w-3 h-3 text-emerald-400" /> : <ZapOff className="w-3 h-3" />}
-                        <span>Auto {autoCapture ? 'ON' : 'OFF'}</span>
-                      </button>
+              {/* Status / Deskew notification */}
+              {statusNotice && (
+                <div className="text-center">
+                  <span className="text-xs text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-800 px-3 py-1 rounded-full">
+                    {statusNotice}
+                  </span>
+                </div>
+              )}
 
-                      {/* Right icons: Flip camera, Orientation, Upload */}
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => setOrientation(orientation === 'vertical' ? 'horizontal' : 'vertical')}
-                          className="p-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white backdrop-blur-md"
-                          title="Switch portrait/landscape orientation"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                        </button>
+              {/* ACTION BUTTONS (Thumb-friendly & responsive) */}
+              <div className="space-y-2.5 pt-2">
+                {!frontImage ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => frontCameraRef.current?.click()}
+                      className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98 transition"
+                    >
+                      <Camera className="w-5 h-5" />
+                      <span>Take Photo with Camera</span>
+                    </button>
 
-                        {cameras.length > 1 && (
-                          <button
-                            onClick={switchCamera}
-                            className="p-1.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 hover:text-white backdrop-blur-md"
-                            title="Switch front/rear camera"
-                          >
-                            <FlipHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handleFileUpload(e, step)}
-                        />
-                      </div>
-                    </div>
-                  </>
+                    <button
+                      type="button"
+                      onClick={() => frontGalleryRef.current?.click()}
+                      className="w-full py-3.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 flex items-center justify-center gap-2 active:scale-98 transition"
+                    >
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span>Choose from Gallery</span>
+                    </button>
+                  </div>
                 ) : (
-                  /* No Camera Fallback */
-                  <div className="p-6 text-center text-slate-300 flex flex-col items-center max-w-sm">
-                    <AlertCircle className="w-10 h-10 text-amber-400 mb-2" />
-                    <h3 className="font-bold text-white text-sm mb-1">Camera Permission Needed</h3>
-                    <p className="text-xs text-slate-400 mb-4">{cameraError}</p>
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition">
-                      <Upload className="w-4 h-4" />
-                      <span>Choose {step === 'front' ? 'Card Front' : 'Card Back'} Photo</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => handleFileUpload(e, step)}
-                      />
-                    </label>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => frontCameraRef.current?.click()}
+                      className="py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>Retake Front</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('back')}
+                      className="py-3 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition"
+                    >
+                      <span>Next: Scan Back</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
+            </div>
+          )}
 
-              {/* BOTTOM CONTROLS (Ergonomic for Thumbs) */}
-              <div className="w-full flex items-center justify-between px-2 pt-3 shrink-0">
-                <div className="w-24">
-                  {step === 'back' ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStep('front');
-                        stepRef.current = 'front';
-                        setFrontImage(null);
-                        frontImageRef.current = null;
-                        setStepNotice('');
-                        startCamera();
-                      }}
-                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Retake Front</span>
-                    </button>
+          {/* STEP 2: BACK SIDE CAPTURE */}
+          {step === 'back' && (
+            <div className="flex-1 flex flex-col justify-between space-y-4 animate-fade-in">
+              <div className="text-center space-y-1">
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  Back Side of ID Card
+                </h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Flip your student card to scan <strong>Emergency Contact</strong>, parent information, and validity.
+                </p>
+              </div>
+
+              {/* CARD PREVIEW / CAPTURE FRAME */}
+              <div className="flex items-center justify-center py-1">
+                <div className="relative w-full max-w-[260px] aspect-[1/1.58] rounded-2xl border-2 border-dashed border-blue-500/50 bg-slate-950 overflow-hidden shadow-2xl flex flex-col items-center justify-center p-3 transition-all duration-300">
+                  {isProcessingBack ? (
+                    <div className="flex flex-col items-center gap-2 p-4 text-center">
+                      <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                      <span className="text-xs font-semibold text-blue-200">
+                        Detecting & Deskewing Back...
+                      </span>
+                    </div>
+                  ) : backImage ? (
+                    <>
+                      <img
+                        src={backImage}
+                        alt="ID Card Back"
+                        className="w-full h-full object-contain rounded-xl"
+                      />
+                      <div className="absolute top-2.5 right-2.5 bg-emerald-600/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                        <Check className="w-3 h-3" />
+                        <span>Back Saved</span>
+                      </div>
+                      {backDetected && (
+                        <div className="absolute bottom-2.5 inset-x-2 text-center">
+                          <span className="bg-slate-900/90 text-emerald-400 text-[10px] font-medium px-2 py-0.5 rounded-full border border-emerald-500/40 shadow backdrop-blur-sm">
+                            ✓ 4-Corner Deskewed
+                          </span>
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Gallery</span>
-                    </button>
+                    /* Blank Back Silhouette */
+                    <div className="flex flex-col items-center justify-between h-full w-full py-4 text-slate-600 select-none">
+                      <div className="w-full border-b border-slate-800 pb-1 text-center">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                          STUDENT ADDRESS & EMERGENCY
+                        </span>
+                      </div>
+                      <div className="space-y-2 w-full px-2">
+                        <div className="h-2 w-full bg-slate-800 rounded" />
+                        <div className="h-2 w-4/5 bg-slate-800 rounded" />
+                        <div className="h-2 w-3/4 bg-slate-800/80 rounded" />
+                        <div className="h-2 w-2/3 bg-slate-800/60 rounded" />
+                      </div>
+                      <div className="w-full border-t border-slate-800 pt-1 text-center">
+                        <span className="text-[8px] font-medium text-slate-500">
+                          Emergency No: 9448040825
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
+              </div>
 
-                {/* Tactile Shutter Button */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleShutterClick(true)}
-                    className="p-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
-                    title="3-second timer"
-                  >
-                    <Clock className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => handleShutterClick(false)}
-                    disabled={isCameraStarting}
-                    className="group relative flex items-center justify-center w-15 h-15 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/40 ring-4 ring-blue-500/20 active:scale-95 transition"
-                    title="Capture ID Card Now"
-                  >
-                    <Camera className="w-6 h-6 group-hover:scale-110 transition" />
-                  </button>
-                </div>
-
-                <div className="w-24 text-right">
-                  <span className="text-[11px] text-slate-400 font-medium">
-                    {step === 'front' ? '1 of 2' : '2 of 2'}
+              {/* Status / Deskew notification */}
+              {statusNotice && (
+                <div className="text-center">
+                  <span className="text-xs text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-800 px-3 py-1 rounded-full">
+                    {statusNotice}
                   </span>
                 </div>
+              )}
+
+              {/* ACTION BUTTONS */}
+              <div className="space-y-2.5 pt-2">
+                {!backImage ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => backCameraRef.current?.click()}
+                      className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98 transition"
+                    >
+                      <Camera className="w-5 h-5" />
+                      <span>Take Photo with Camera</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => backGalleryRef.current?.click()}
+                      className="w-full py-3.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 flex items-center justify-center gap-2 active:scale-98 transition"
+                    >
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span>Choose from Gallery</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => backCameraRef.current?.click()}
+                      className="py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>Retake Back</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setStep('review')}
+                      className="py-3 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition"
+                    >
+                      <span>Continue to Verify</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          ) : (
-            /* STEP 3: REVIEW & VERIFY SCREEN */
+          )}
+
+          {/* STEP 3: REVIEW DETAILS (NO SQUISHED SIDE-BY-SIDE BOXES!) */}
+          {step === 'review' && (
             <div className="space-y-4 animate-fade-in">
-              {/* OCR Status banner */}
-              {isProcessingOcr ? (
-                <div className="bg-blue-950/40 border border-blue-800 p-3 rounded-xl flex items-center gap-2.5">
+              {/* Status Header */}
+              {isExtractingOcr ? (
+                <div className="bg-blue-950/40 border border-blue-800/80 p-3 rounded-xl flex items-center gap-2.5">
                   <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
                   <div className="text-xs text-blue-200">
-                    <p className="font-bold">{ocrStatusText}</p>
+                    <p className="font-bold">Extracting Student Information...</p>
                     <p className="text-blue-400 text-[11px]">
-                      Extracting roll number 23BC023 & course details...
+                      Analyzing roll number 23BC023 & course details.
                     </p>
                   </div>
                 </div>
-              ) : extractedData?.studentIdNumber ? (
-                <div className="bg-emerald-950/40 border border-emerald-800 p-3 rounded-xl flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <div className="text-xs text-emerald-200">
-                    <p className="font-bold">Roll Number Auto-Detected!</p>
-                    <p className="text-emerald-400 text-[11px]">
-                      Recognized Roll No <strong>{extractedData.studentIdNumber}</strong> ({extractedData.department || 'BCA'}).
-                    </p>
+              ) : studentIdInput ? (
+                <div className="bg-emerald-950/40 border border-emerald-800/80 p-3 rounded-xl flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-emerald-200">
+                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="font-bold">Roll Number Detected!</p>
+                      <p className="text-emerald-400 text-[11px]">
+                        ID <strong>{studentIdInput}</strong> ({departmentInput || 'BCA'})
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyRollNo}
+                    className="p-1.5 text-emerald-400 hover:text-white rounded-lg hover:bg-emerald-900/50 transition"
+                    title="Copy Roll No"
+                  >
+                    {copiedId ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                  </button>
                 </div>
               ) : (
-                <div className="bg-slate-800/60 border border-slate-700 p-3 rounded-xl flex items-start gap-2.5">
+                <div className="bg-slate-800/60 border border-slate-700/80 p-3 rounded-xl flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                   <div className="text-xs text-slate-300">
                     <p className="font-bold text-white">Review Cropped ID Card</p>
                     <p className="text-slate-400 text-[11px]">
-                      Background removed. Please confirm your Roll Number (e.g. 23BC023) before saving.
+                      Confirm your Roll Number before saving your verified credentials.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Cropped Front & Back Preview Cards */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Front */}
-                <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-950/50 flex flex-col items-center">
-                  <div className="w-full flex items-center justify-between mb-1.5 text-[11px]">
-                    <span className="font-bold text-slate-300 flex items-center gap-1">
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      Front Side
-                    </span>
+              {/* FULL-WIDTH CARD PREVIEW WITH SEGMENTED SWITCHER (Solves squishing on mobile!) */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-3 flex flex-col items-center">
+                {/* Segmented Front / Back Switcher */}
+                <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-slate-800/80">
+                  <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
                     <button
-                      onClick={() => {
-                        setStep('front');
-                        stepRef.current = 'front';
-                        setFrontImage(null);
-                        frontImageRef.current = null;
-                        setStepNotice('');
-                        startCamera();
-                      }}
-                      className="text-blue-400 hover:text-blue-300 font-semibold"
+                      type="button"
+                      onClick={() => setReviewSide('front')}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                        reviewSide === 'front'
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
                     >
-                      Retake
+                      Front Side
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewSide('back')}
+                      className={`px-3 py-1 text-xs font-bold rounded-lg transition ${
+                        reviewSide === 'back'
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Back Side
                     </button>
                   </div>
-                  <div className="relative h-44 sm:h-52 aspect-[1/1.58] rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shadow">
-                    <img
-                      src={frontImage}
-                      alt="ID Card Front"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
+
+                  {/* Retake Button for Active Side */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (reviewSide === 'front') {
+                        setStep('front');
+                        frontCameraRef.current?.click();
+                      } else {
+                        setStep('back');
+                        backCameraRef.current?.click();
+                      }
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>Retake {reviewSide === 'front' ? 'Front' : 'Back'}</span>
+                  </button>
                 </div>
 
-                {/* Back */}
-                <div className="border border-slate-800 rounded-xl p-2.5 bg-slate-950/50 flex flex-col items-center">
-                  <div className="w-full flex items-center justify-between mb-1.5 text-[11px]">
-                    <span className="font-bold text-slate-300 flex items-center gap-1">
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      Back Side
-                    </span>
-                    <button
-                      onClick={() => {
-                        setStep('back');
-                        stepRef.current = 'back';
-                        setBackImage(null);
-                        backImageRef.current = null;
-                        setStepNotice('');
-                        startCamera();
-                      }}
-                      className="text-blue-400 hover:text-blue-300 font-semibold"
-                    >
-                      Retake
-                    </button>
-                  </div>
-                  <div className="relative h-44 sm:h-52 aspect-[1/1.58] rounded-lg overflow-hidden bg-slate-950 border border-slate-700 shadow">
-                    <img
-                      src={backImage}
-                      alt="ID Card Back"
-                      className="w-full h-full object-contain"
-                    />
+                {/* Big Clean Card Preview (Aspect Ratio 1:1.58, NO SIDE-BY-SIDE SQUISHING!) */}
+                <div
+                  onClick={() => setIsZoomOpen(true)}
+                  className="relative w-full max-w-[220px] aspect-[1/1.58] rounded-xl overflow-hidden bg-slate-900 border border-slate-700/80 shadow-lg cursor-zoom-in group"
+                >
+                  <img
+                    src={reviewSide === 'front' ? frontImage : backImage}
+                    alt={`ID Card ${reviewSide}`}
+                    className="w-full h-full object-contain transition-transform duration-200 group-hover:scale-102"
+                  />
+                  <div className="absolute bottom-2 right-2 bg-slate-950/80 px-2 py-0.5 rounded text-[10px] font-medium text-white flex items-center gap-1 shadow">
+                    <ZoomIn className="w-3 h-3 text-blue-400" />
+                    <span>Inspect</span>
                   </div>
                 </div>
               </div>
 
-              {/* Form Confirmation */}
-              <div className="p-4 bg-slate-800/40 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                    Student ID Information
+              {/* STUDENT ID INFORMATION FORM */}
+              <div className="space-y-3 bg-slate-950/60 border border-slate-800 p-3.5 rounded-2xl">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Student ID Information
+                </span>
+
+                {/* Roll Number Input */}
+                <div>
+                  <label htmlFor="studentIdInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                    Student ID / Roll No <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    id="studentIdInput"
+                    type="text"
+                    value={studentIdInput}
+                    onChange={(e) => setStudentIdInput(e.target.value.toUpperCase())}
+                    placeholder="e.g. 23BC023"
+                    className="w-full px-3 py-2 text-sm font-mono font-bold bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Found above the barcode on your physical card (e.g. 23BC023).
                   </span>
-                  {extractedData?.studentIdNumber && (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
-                      Auto-detected
-                    </span>
-                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
-                      Student ID / Roll No <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={studentIdInput}
-                      onChange={(e) => setStudentIdInput(e.target.value)}
-                      placeholder="e.g. 23BC023"
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none uppercase"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-0.5">Found above barcode (e.g. 23BC023)</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
-                      Course / Department
-                    </label>
-                    <input
-                      type="text"
-                      value={departmentInput}
-                      onChange={(e) => setDepartmentInput(e.target.value)}
-                      placeholder="e.g. Bachelor of Computer Application (BCA)"
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
+                {/* Department Input */}
+                <div>
+                  <label htmlFor="departmentInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                    Course / Department
+                  </label>
+                  <input
+                    id="departmentInput"
+                    type="text"
+                    value={departmentInput}
+                    onChange={(e) => setDepartmentInput(e.target.value)}
+                    placeholder="Bachelor of Computer Application (BCA)"
+                    className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+                {/* 2-Column Row: Year & Emergency Phone */}
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                    <label htmlFor="yearInput" className="text-xs font-semibold text-slate-300 block mb-1">
                       Academic Year
                     </label>
                     <input
+                      id="yearInput"
                       type="text"
                       value={yearInput}
                       onChange={(e) => setYearInput(e.target.value)}
-                      placeholder="e.g. 3rd Year"
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="3rd Year"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                    <label htmlFor="emergencyPhoneInput" className="text-xs font-semibold text-slate-300 block mb-1">
                       Emergency Phone
                     </label>
                     <input
-                      type="text"
+                      id="emergencyPhoneInput"
+                      type="tel"
                       value={emergencyPhoneInput}
                       onChange={(e) => setEmergencyPhoneInput(e.target.value)}
-                      placeholder="e.g. 9448040825"
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="9448040825"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Actions Footer */}
-              <div className="flex items-center justify-end gap-2.5 pt-2">
+              {/* STICKY BOTTOM SUBMIT BUTTON */}
+              <div className="pt-2">
                 <Button
-                  variant="outline"
-                  onClick={() => {
-                    setStep('front');
-                    stepRef.current = 'front';
-                    setFrontImage(null);
-                    setBackImage(null);
-                    frontImageRef.current = null;
-                    backImageRef.current = null;
-                    setStepNotice('');
-                    startCamera();
-                  }}
-                  disabled={isUploading}
-                  className="text-xs"
+                  type="button"
+                  onClick={handleFinalSubmit}
+                  disabled={isUploading || !studentIdInput.trim()}
+                  className="w-full py-3.5 text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98 transition cursor-pointer"
                 >
-                  Start Over
-                </Button>
-
-                <Button
-                  onClick={handleSubmit}
-                  isLoading={isUploading}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 text-xs shadow-lg shadow-emerald-600/30"
-                >
-                  <ShieldCheck className="w-4 h-4 mr-1.5" />
-                  Save & Verify Student ID
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving Student ID...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Confirm & Save Student ID</span>
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* FULL-RESOLUTION ZOOM INSPECT LIGHTBOX */}
+      {isZoomOpen && (
+        <div
+          onClick={() => setIsZoomOpen(false)}
+          className="fixed inset-0 z-60 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-fade-in"
+        >
+          <button
+            onClick={() => setIsZoomOpen(false)}
+            className="absolute top-4 right-4 p-2.5 rounded-full bg-slate-800 text-white hover:bg-slate-700 transition"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={reviewSide === 'front' ? frontImage : backImage}
+            alt="Inspect Card"
+            className="max-h-[85vh] max-w-[92vw] object-contain rounded-2xl border-2 border-slate-700 shadow-2xl"
+          />
+          <span className="text-xs text-slate-400 mt-3">
+            Showing {reviewSide === 'front' ? 'Front Side' : 'Back Side'} — Tap anywhere to dismiss
+          </span>
+        </div>
+      )}
     </div>
   );
 }
