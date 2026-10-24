@@ -270,7 +270,7 @@ export default function IdCardBadgeWidget({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   {/* Roll No */}
                   <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <div>
@@ -299,6 +299,38 @@ export default function IdCardBadgeWidget({
                     <span className="text-slate-400 block text-[10px] uppercase font-bold">Course / Department</span>
                     <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs line-clamp-1">
                       {profile.department || 'Bachelor of Computer Application'}
+                    </span>
+                  </div>
+
+                  {/* Batch */}
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Batch</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                      {profile.batch || '2023 - 2024'}
+                    </span>
+                  </div>
+
+                  {/* Valid Upto / Expiry Date */}
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Valid Upto</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono text-xs">
+                      {profile.idCardValidUpto || (profile.idCardExpiresAt ? new Date(profile.idCardExpiresAt).getFullYear() : '2026')}
+                    </span>
+                  </div>
+
+                  {/* Student Phone */}
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Student Phone</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono text-xs">
+                      {profile.phone || 'N/A'}
+                    </span>
+                  </div>
+
+                  {/* Emergency Contact */}
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Emergency Contact</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono text-xs">
+                      {profile.emergencyPhone || 'N/A'}
                     </span>
                   </div>
 

@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma.js'
-import { BadRequestError, NotFoundError } from '../../utils/ApiError.js'
+import { BadRequestError, ConflictError, NotFoundError } from '../../utils/ApiError.js'
 import { logger } from '../../utils/logger.js'
 import { revokeAllUserTokens } from '../auth/token.service.js'
 import { uploadToCloudinary } from '../../config/cloudinary.js'
@@ -13,6 +13,7 @@ export const getUserSettings = async (userId) => {
       name: true,
       email: true,
       role: true,
+      phone: true,
       department: true,
       batch: true,
       year: true,
@@ -30,6 +31,9 @@ export const getUserSettings = async (userId) => {
       idCardScannedAt: true,
       idCardVerifiedAt: true,
       idCardRejectionReason: true,
+      idCardValidUpto: true,
+      idCardExpiresAt: true,
+      emergencyPhone: true,
     },
   })
 
@@ -43,6 +47,7 @@ export const getUserSettings = async (userId) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      phone: user.phone || '',
       department: user.department || '',
       batch: user.batch || '',
       year: user.year || '',
@@ -58,6 +63,9 @@ export const getUserSettings = async (userId) => {
       idCardScannedAt: user.idCardScannedAt,
       idCardVerifiedAt: user.idCardVerifiedAt,
       idCardRejectionReason: user.idCardRejectionReason || '',
+      idCardValidUpto: user.idCardValidUpto || '',
+      idCardExpiresAt: user.idCardExpiresAt,
+      emergencyPhone: user.emergencyPhone || '',
     },
     notifications: {
       emailInstantAlerts: user.emailInstantAlerts,
@@ -69,6 +77,10 @@ export const getUserSettings = async (userId) => {
 export const updateProfile = async (userId, dto) => {
   const updateData = {
     name: dto.name,
+  }
+
+  if (dto.phone !== undefined) {
+    updateData.phone = dto.phone || null
   }
 
   if (dto.department !== undefined) {
@@ -91,6 +103,7 @@ export const updateProfile = async (userId, dto) => {
       name: true,
       email: true,
       role: true,
+      phone: true,
       department: true,
       batch: true,
       year: true,
@@ -109,6 +122,7 @@ export const updateProfile = async (userId, dto) => {
     name: updated.name,
     email: updated.email,
     role: updated.role,
+    phone: updated.phone || '',
     department: updated.department || '',
     batch: updated.batch || '',
     year: updated.year || '',
@@ -156,6 +170,31 @@ const toBuffer = (fileOrDataUrl) => {
     return Buffer.from(base64, 'base64')
   }
   return null
+}
+
+const parseExpiryDate = (validUpto) => {
+  if (!validUpto) return null
+  const str = String(validUpto).trim()
+  if (!str) return null
+
+  // 4 digit year e.g. "2026"
+  if (/^\d{4}$/.test(str)) {
+    return new Date(`${str}-12-31T23:59:59.999Z`)
+  }
+
+  // Find 4 digit year starting with 20 e.g. "Valid Upto : 2026"
+  const match = str.match(/\b(20\d{2})\b/)
+  if (match) {
+    const year = match[1]
+    const parsed = new Date(str)
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() >= 2000) {
+      return parsed
+    }
+    return new Date(`${year}-12-31T23:59:59.999Z`)
+  }
+
+  const parsed = new Date(str)
+  return isNaN(parsed.getTime()) ? null : parsed
 }
 
 export const scanAndCropIdCard = async ({ imageBuffer, imageDataUrl, orientation = 'vertical' }) => {
@@ -268,8 +307,54 @@ export const scanAndCropIdCardMulti = async ({
 
 export const uploadIdCard = async (
   userId,
-  { studentIdNumber, frontBuffer, backBuffer, frontDataUrl, backDataUrl, department, year }
+  {
+    studentIdNumber,
+    name,
+    phone,
+    department,
+    batch,
+    year,
+    validUpto,
+    emergencyPhone,
+    frontBuffer,
+    backBuffer,
+    frontDataUrl,
+    backDataUrl,
+  }
 ) => {
+  const cleanId = (studentIdNumber || '').trim().toUpperCase()
+  if (!cleanId) {
+    throw new BadRequestError('Valid Student ID / Roll Number is required')
+  }
+
+  // Check unique ID number against database to prevent duplicate student profiles
+  const existingWithSameId = await prisma.user.findFirst({
+    where: {
+      studentIdNumber: {
+        equals: cleanId,
+        mode: 'insensitive',
+      },
+      id: {
+        not: userId,
+      },
+    },
+    select: {
+      id: true,
+      studentIdNumber: true,
+      name: true,
+    },
+  })
+
+  if (existingWithSameId) {
+    logger.warn(
+      { userId, attemptedId: cleanId, existingUserId: existingWithSameId.id },
+      'Duplicate student ID card registration rejected'
+    )
+    throw new ConflictError(
+      `Student ID / Roll Number '${cleanId}' is already registered to another account. Duplicate student ID cards are not permitted.`
+    )
+  }
+
   const front = frontBuffer || toBuffer(frontDataUrl)
   const back = backBuffer || toBuffer(backDataUrl)
 
@@ -288,8 +373,13 @@ export const uploadIdCard = async (
     throw new BadRequestError(`Image upload failed: ${err.message || 'Storage error'}`)
   }
 
+  const cleanValidUpto = validUpto ? String(validUpto).trim() : null
+  const expiresAt = parseExpiryDate(cleanValidUpto)
+
   const updateData = {
-    studentIdNumber: studentIdNumber.trim(),
+    studentIdNumber: cleanId,
+    idCardValidUpto: cleanValidUpto,
+    idCardExpiresAt: expiresAt,
     idCardFrontUrl: frontUpload?.secure_url || null,
     idCardBackUrl: backUpload?.secure_url || null,
     idCardStatus: 'VERIFIED',
@@ -298,8 +388,12 @@ export const uploadIdCard = async (
     idCardRejectionReason: null,
   }
 
-  if (department) updateData.department = department
-  if (year) updateData.year = year
+  if (name && name.trim()) updateData.name = name.trim()
+  if (phone && phone.trim()) updateData.phone = phone.trim()
+  if (emergencyPhone && emergencyPhone.trim()) updateData.emergencyPhone = emergencyPhone.trim()
+  if (department && department.trim()) updateData.department = department.trim()
+  if (batch && batch.trim()) updateData.batch = batch.trim()
+  if (year && year.trim()) updateData.year = year.trim()
 
   const updated = await prisma.user.update({
     where: { id: userId },
@@ -309,7 +403,9 @@ export const uploadIdCard = async (
       name: true,
       email: true,
       role: true,
+      phone: true,
       department: true,
+      batch: true,
       year: true,
       studentIdNumber: true,
       idCardFrontUrl: true,
@@ -318,10 +414,16 @@ export const uploadIdCard = async (
       idCardScannedAt: true,
       idCardVerifiedAt: true,
       idCardRejectionReason: true,
+      idCardValidUpto: true,
+      idCardExpiresAt: true,
+      emergencyPhone: true,
     },
   })
 
-  logger.info({ userId, studentIdNumber: updated.studentIdNumber }, 'Student ID card uploaded and verified')
+  logger.info(
+    { userId, studentIdNumber: updated.studentIdNumber, validUpto: updated.idCardValidUpto },
+    'Student ID card uploaded and verified'
+  )
   return updated
 }
 
@@ -344,6 +446,9 @@ export const updateIdCardStatus = async (userId, { status, rejectionReason }) =>
           idCardScannedAt: null,
           idCardVerifiedAt: null,
           idCardRejectionReason: null,
+          idCardValidUpto: null,
+          idCardExpiresAt: null,
+          emergencyPhone: null,
         }
       : {}),
   }
@@ -356,7 +461,10 @@ export const updateIdCardStatus = async (userId, { status, rejectionReason }) =>
       name: true,
       email: true,
       role: true,
+      phone: true,
       department: true,
+      batch: true,
+      year: true,
       studentIdNumber: true,
       idCardStatus: true,
       idCardFrontUrl: true,
@@ -364,6 +472,9 @@ export const updateIdCardStatus = async (userId, { status, rejectionReason }) =>
       idCardScannedAt: true,
       idCardVerifiedAt: true,
       idCardRejectionReason: true,
+      idCardValidUpto: true,
+      idCardExpiresAt: true,
+      emergencyPhone: true,
     },
   })
 

@@ -55,8 +55,13 @@ export default function IdCardScannerModal({
   onClose,
   onSuccess,
   currentStudentId = '',
+  currentName = '',
+  currentPhone = '',
   currentDepartment = '',
-  currentYear = ''
+  currentBatch = '',
+  currentYear = '',
+  currentValidUpto = '',
+  currentEmergencyPhone = ''
 }) {
   // Navigation: 'front' (1) -> 'back' (2) -> 'review' (3)
   const [step, setStep] = useState('front');
@@ -74,11 +79,16 @@ export default function IdCardScannerModal({
   const [isUploading, setIsUploading] = useState(false);
   const [statusNotice, setStatusNotice] = useState('');
 
-  // Step 3 Review Form Fields
+  // Step 3 Review Form Fields (All 7 Red-Highlighted details from Physical ID Card)
   const [studentIdInput, setStudentIdInput] = useState(currentStudentId || '');
+  const [nameInput, setNameInput] = useState(currentName || '');
+  const [phoneInput, setPhoneInput] = useState(currentPhone || '');
   const [departmentInput, setDepartmentInput] = useState(currentDepartment || '');
+  const [batchInput, setBatchInput] = useState(currentBatch || '');
   const [yearInput, setYearInput] = useState(currentYear || '');
-  const [emergencyPhoneInput, setEmergencyPhoneInput] = useState('');
+  const [validUptoInput, setValidUptoInput] = useState(currentValidUpto || '');
+  const [emergencyPhoneInput, setEmergencyPhoneInput] = useState(currentEmergencyPhone || '');
+
   const [reviewSide, setReviewSide] = useState('front'); // 'front' | 'back'
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
@@ -98,13 +108,27 @@ export default function IdCardScannerModal({
       setFrontDetected(false);
       setBackDetected(false);
       setStudentIdInput(currentStudentId || '');
+      setNameInput(currentName || '');
+      setPhoneInput(currentPhone || '');
       setDepartmentInput(currentDepartment || 'Bachelor of Computer Application (BCA)');
+      setBatchInput(currentBatch || '2023 - 2024');
       setYearInput(currentYear || '3rd Year');
-      setEmergencyPhoneInput('');
+      setValidUptoInput(currentValidUpto || '2026');
+      setEmergencyPhoneInput(currentEmergencyPhone || '');
       setStatusNotice('');
       setReviewSide('front');
     }
-  }, [isOpen, currentStudentId, currentDepartment, currentYear]);
+  }, [
+    isOpen,
+    currentStudentId,
+    currentName,
+    currentPhone,
+    currentDepartment,
+    currentBatch,
+    currentYear,
+    currentValidUpto,
+    currentEmergencyPhone
+  ]);
 
   if (!isOpen) return null;
 
@@ -132,7 +156,7 @@ export default function IdCardScannerModal({
           setFrontDetected(detected);
           setStatusNotice(detected ? '✓ 4-Corner Card Straightened!' : '✓ Card Photo Loaded');
 
-          // Run background OCR on Front for Roll No & Course
+          // Run background OCR on Front for Roll No, Name, Phone, Course, Batch & Validity
           setIsExtractingOcr(true);
           extractTextFromCard(finalUrl)
             .then((text) => {
@@ -142,10 +166,20 @@ export default function IdCardScannerModal({
                   setStudentIdInput(parsed.studentIdNumber);
                   toast.success(`Detected Roll No: ${parsed.studentIdNumber}`);
                 }
+                if (parsed.name) {
+                  setNameInput(parsed.name);
+                }
+                if (parsed.phone) {
+                  setPhoneInput(parsed.phone);
+                }
                 if (parsed.department) {
                   setDepartmentInput(parsed.department);
                 }
+                if (parsed.batch) {
+                  setBatchInput(parsed.batch);
+                }
                 if (parsed.validUpto) {
+                  setValidUptoInput(parsed.validUpto);
                   setYearInput(parsed.validUpto.includes('2026') ? '3rd Year' : 'Current Year');
                 }
               }
@@ -173,8 +207,8 @@ export default function IdCardScannerModal({
           extractTextFromCard(finalUrl).then((text) => {
             if (text) {
               const parsed = parseIdCardText(text);
-              if (parsed.emergencyContact) {
-                setEmergencyPhoneInput(parsed.emergencyContact);
+              if (parsed.emergencyPhone || parsed.emergencyContact) {
+                setEmergencyPhoneInput(parsed.emergencyPhone || parsed.emergencyContact);
               }
             }
           });
@@ -206,10 +240,15 @@ export default function IdCardScannerModal({
       setIsUploading(true);
       await onSuccess({
         studentIdNumber: studentIdInput.trim().toUpperCase(),
+        name: nameInput.trim(),
+        phone: phoneInput.trim(),
+        department: departmentInput.trim(),
+        batch: batchInput.trim(),
+        year: yearInput.trim(),
+        validUpto: validUptoInput.trim(),
+        emergencyPhone: emergencyPhoneInput.trim(),
         frontImage,
-        backImage,
-        department: departmentInput,
-        year: yearInput
+        backImage
       });
       setIsUploading(false);
       toast.success('Institutional Student ID successfully verified! 🛡️');
@@ -747,47 +786,88 @@ export default function IdCardScannerModal({
               </div>
 
               {/* STUDENT ID INFORMATION FORM */}
-              <div className="space-y-3 bg-slate-950/60 border border-slate-800 p-3.5 rounded-2xl">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Student ID Information
-                </span>
-
-                {/* Roll Number Input */}
-                <div>
-                  <label htmlFor="studentIdInput" className="text-xs font-semibold text-slate-300 block mb-1">
-                    Student ID / Roll No <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    id="studentIdInput"
-                    type="text"
-                    value={studentIdInput}
-                    onChange={(e) => setStudentIdInput(e.target.value.toUpperCase())}
-                    placeholder="e.g. 23BC023"
-                    className="w-full px-3 py-2 text-sm font-mono font-bold bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                  <span className="text-[10px] text-slate-500 block mt-0.5">
-                    Found above the barcode on your physical card (e.g. 23BC023).
+              <div className="space-y-3.5 bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                    Student Institutional Record
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60">
+                    Auto-Extracted from ID
                   </span>
                 </div>
 
-                {/* Department Input */}
-                <div>
-                  <label htmlFor="departmentInput" className="text-xs font-semibold text-slate-300 block mb-1">
-                    Course / Department
-                  </label>
-                  <input
-                    id="departmentInput"
-                    type="text"
-                    value={departmentInput}
-                    onChange={(e) => setDepartmentInput(e.target.value)}
-                    placeholder="Bachelor of Computer Application (BCA)"
-                    className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                {/* Row 1: Roll No & Full Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="studentIdInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                      Student ID / Roll No <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      id="studentIdInput"
+                      type="text"
+                      value={studentIdInput}
+                      onChange={(e) => setStudentIdInput(e.target.value.toUpperCase())}
+                      placeholder="e.g. 23BC023"
+                      className="w-full px-3 py-2 text-sm font-mono font-bold bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      Unique institutional ID (e.g. 23BC023).
+                    </span>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nameInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                      Student Full Name
+                    </label>
+                    <input
+                      id="nameInput"
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value.toUpperCase())}
+                      placeholder="e.g. ABIN K R"
+                      className="w-full px-3 py-2 text-xs font-semibold bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      As printed on physical ID card.
+                    </span>
+                  </div>
                 </div>
 
-                {/* 2-Column Row: Year & Emergency Phone */}
-                <div className="grid grid-cols-2 gap-2.5">
+                {/* Row 2: Department / Course & Batch */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="departmentInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                      Course / Department
+                    </label>
+                    <input
+                      id="departmentInput"
+                      type="text"
+                      value={departmentInput}
+                      onChange={(e) => setDepartmentInput(e.target.value)}
+                      placeholder="Bachelor of Computer Application (BCA)"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="batchInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                      Batch
+                    </label>
+                    <input
+                      id="batchInput"
+                      type="text"
+                      value={batchInput}
+                      onChange={(e) => setBatchInput(e.target.value)}
+                      placeholder="2023 - 2024"
+                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 3: Academic Year & Valid Upto */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="yearInput" className="text-xs font-semibold text-slate-300 block mb-1">
                       Academic Year
@@ -803,8 +883,39 @@ export default function IdCardScannerModal({
                   </div>
 
                   <div>
+                    <label htmlFor="validUptoInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                      Valid Upto / Expiry
+                    </label>
+                    <input
+                      id="validUptoInput"
+                      type="text"
+                      value={validUptoInput}
+                      onChange={(e) => setValidUptoInput(e.target.value)}
+                      placeholder="2026"
+                      className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 4: Student Phone & Emergency Phone */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="phoneInput" className="text-xs font-semibold text-slate-300 block mb-1">
+                      Student Phone (Front)
+                    </label>
+                    <input
+                      id="phoneInput"
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="9947923223"
+                      className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
                     <label htmlFor="emergencyPhoneInput" className="text-xs font-semibold text-slate-300 block mb-1">
-                      Emergency Phone
+                      Emergency No (Back)
                     </label>
                     <input
                       id="emergencyPhoneInput"
@@ -812,9 +923,16 @@ export default function IdCardScannerModal({
                       value={emergencyPhoneInput}
                       onChange={(e) => setEmergencyPhoneInput(e.target.value)}
                       placeholder="9448040825"
-                      className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                </div>
+
+                <div className="text-[11px] text-slate-400 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                  <span>
+                    Your Roll Number will be checked against the database to guarantee uniqueness and prevent duplicate profiles.
+                  </span>
                 </div>
               </div>
 

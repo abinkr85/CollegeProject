@@ -136,11 +136,13 @@ export default function StudentSettings() {
       ...prev,
       ...updated,
     }));
+    if (updated.name) setName(updated.name);
     if (updated.department) setDepartment(updated.department);
     if (updated.year) setYear(updated.year);
     if (updateUser) {
       updateUser({
         ...user,
+        name: updated.name || user?.name,
         studentIdNumber: updated.studentIdNumber,
         idCardStatus: updated.idCardStatus,
         idCardFrontUrl: updated.idCardFrontUrl,
@@ -738,8 +740,13 @@ export default function StudentSettings() {
         onClose={() => setIsScannerOpen(false)}
         onSuccess={handleIdCardSuccess}
         currentStudentId={profileData?.studentIdNumber || ''}
-        currentDepartment={department || ''}
-        currentYear={year || ''}
+        currentName={profileData?.name || name || ''}
+        currentPhone={profileData?.phone || ''}
+        currentDepartment={department || profileData?.department || ''}
+        currentBatch={profileData?.batch || ''}
+        currentYear={year || profileData?.year || ''}
+        currentValidUpto={profileData?.idCardValidUpto || ''}
+        currentEmergencyPhone={profileData?.emergencyPhone || ''}
       />
     </div>
   );

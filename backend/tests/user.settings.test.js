@@ -4,12 +4,15 @@ const mocks = vi.hoisted(() => ({
   prisma: {
     user: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
     },
   },
   revokeAllUserTokens: vi.fn().mockResolvedValue(true),
   logger: {
     info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }))
 
@@ -163,6 +166,74 @@ describe('User Settings Service', () => {
       expect(result.detected).toBe(true)
       expect(result.image).toBe('data:image/jpeg;base64,cropped123')
       vi.unstubAllGlobals()
+    })
+  })
+
+  describe('uploadIdCard', () => {
+    it('throws ConflictError if studentIdNumber is already registered to another user', async () => {
+      const { uploadIdCard } = await import('../src/modules/user/user.service.js')
+      mocks.prisma.user.findFirst.mockResolvedValue({
+        id: 'other-user-999',
+        studentIdNumber: '23BC023',
+        name: 'Existing Student',
+      })
+
+      await expect(
+        uploadIdCard('current-user-123', {
+          studentIdNumber: '23BC023',
+          frontBuffer: Buffer.from('front'),
+          backBuffer: Buffer.from('back'),
+        })
+      ).rejects.toThrow(/already registered to another account/i)
+    })
+
+    it('saves all 7 fields including validUpto and calculated expiry date when ID is unique', async () => {
+      const { uploadIdCard } = await import('../src/modules/user/user.service.js')
+      const { uploadToCloudinary } = await import('../src/config/cloudinary.js')
+      uploadToCloudinary.mockResolvedValue({ secure_url: 'https://cloudinary.com/id.jpg' })
+
+      mocks.prisma.user.findFirst.mockResolvedValue(null)
+      mocks.prisma.user.update.mockResolvedValue({
+        id: 'current-user-123',
+        name: 'ABIN K R',
+        phone: '9947923223',
+        department: 'Bachelor of Computer Application (BCA)',
+        batch: '2023 - 2024',
+        year: '3rd Year',
+        studentIdNumber: '23BC023',
+        idCardValidUpto: '2026',
+        idCardExpiresAt: new Date('2026-12-31T23:59:59.999Z'),
+        emergencyPhone: '9448040825',
+        idCardStatus: 'VERIFIED',
+      })
+
+      const res = await uploadIdCard('current-user-123', {
+        studentIdNumber: '23BC023',
+        name: 'ABIN K R',
+        phone: '9947923223',
+        department: 'Bachelor of Computer Application (BCA)',
+        batch: '2023 - 2024',
+        year: '3rd Year',
+        validUpto: '2026',
+        emergencyPhone: '9448040825',
+        frontBuffer: Buffer.from('front'),
+        backBuffer: Buffer.from('back'),
+      })
+
+      expect(res.studentIdNumber).toBe('23BC023')
+      expect(res.idCardValidUpto).toBe('2026')
+      expect(res.emergencyPhone).toBe('9448040825')
+      expect(mocks.prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'current-user-123' },
+          data: expect.objectContaining({
+            studentIdNumber: '23BC023',
+            idCardValidUpto: '2026',
+            emergencyPhone: '9448040825',
+            idCardStatus: 'VERIFIED',
+          }),
+        })
+      )
     })
   })
 })

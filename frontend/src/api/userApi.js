@@ -48,8 +48,13 @@ export async function uploadStudentIdCard(payload) {
   if (!isFormData && (payload?.frontImage || payload?.backImage)) {
     const formData = new FormData();
     if (payload.studentIdNumber) formData.append('studentIdNumber', payload.studentIdNumber);
+    if (payload.name) formData.append('name', payload.name);
+    if (payload.phone) formData.append('phone', payload.phone);
     if (payload.department) formData.append('department', payload.department);
+    if (payload.batch) formData.append('batch', payload.batch);
     if (payload.year) formData.append('year', payload.year);
+    if (payload.validUpto) formData.append('validUpto', payload.validUpto);
+    if (payload.emergencyPhone) formData.append('emergencyPhone', payload.emergencyPhone);
 
     if (payload.frontImage) {
       if (typeof payload.frontImage === 'string' && payload.frontImage.startsWith('data:')) {

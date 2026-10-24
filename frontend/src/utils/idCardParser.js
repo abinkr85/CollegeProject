@@ -26,10 +26,11 @@ export function parseIdCardText(ocrText = '') {
     bloodGroup: '',
     validUpto: '',
     phone: '',
+    emergencyPhone: '',
     emergencyContact: '',
     fatherName: '',
     motherName: '',
-    rawText: ocrText
+    rawText: ocrText,
   };
 
   // 1. Institution Pattern (Harsha Institutions or similar)
@@ -111,23 +112,39 @@ export function parseIdCardText(ocrText = '') {
     result.bloodGroup = bloodMatch[1].toUpperCase();
   }
 
-  // 7. Validity Pattern
-  // e.g. "Valid Upto : 2026"
+  // 7. Validity Pattern / Expiry Date
+  // e.g. "Valid Upto : 2026" or "VALID UPTO: 2026"
   const validMatch = cleanText.match(/Valid\s*Upto\s*[:\-]?\s*(\d{4})/i);
   if (validMatch) {
     result.validUpto = validMatch[1];
   }
 
-  // 8. Phone Numbers (Card Front & Back)
+  // 8. Explicit Phone Search (Card Front Ph.: 9947923223)
+  const explicitPhoneMatch = cleanText.match(/(?:Ph\.?|Phone|Mob\.?|Cell)[:\s.-]*([6-9]\d{9})/i);
+  if (explicitPhoneMatch) {
+    result.phone = explicitPhoneMatch[1];
+  }
+
+  // 9. Explicit Emergency Contact from back (e.g. "Emergency no.: 9448040825")
+  const emergencyMatch = cleanText.match(/Emergency\s*(?:no\.?|contact|ph\.?)?[:\s.-]*([6-9]\d{9})/i);
+  if (emergencyMatch) {
+    result.emergencyPhone = emergencyMatch[1];
+    result.emergencyContact = emergencyMatch[1];
+  }
+
+  // 10. Fallback phone matches if not matched explicitly
   const phoneMatches = cleanText.match(/\b[6-9]\d{9}\b/g);
   if (phoneMatches && phoneMatches.length > 0) {
-    result.phone = phoneMatches[0];
-    if (phoneMatches.length > 1) {
+    if (!result.phone) {
+      result.phone = phoneMatches[0];
+    }
+    if (!result.emergencyPhone && phoneMatches.length > 1) {
+      result.emergencyPhone = phoneMatches[1];
       result.emergencyContact = phoneMatches[1];
     }
   }
 
-  // 9. Back side patterns: Father & Mother Name
+  // 11. Back side patterns: Father & Mother Name
   // e.g. "(F) REJI" and "(M) SHIBI"
   const fatherMatch = cleanText.match(/\(F\)\s*([A-Za-z\s]+?)(?=\s*(?:\(M\)|Guardian|Emergency|\r?\n|$))/i);
   if (fatherMatch) {
@@ -137,13 +154,6 @@ export function parseIdCardText(ocrText = '') {
   const motherMatch = cleanText.match(/\(M\)\s*([A-Za-z\s]+?)(?=\s*(?:Guardian|Emergency|\r?\n|$))/i);
   if (motherMatch) {
     result.motherName = motherMatch[1].trim();
-  }
-
-  // 10. Emergency Contact from back
-  // e.g. "Emergency no.: 9448040825"
-  const emergencyMatch = cleanText.match(/Emergency\s*(?:no\.?)?[:\s.-]*([0-9]{10})/i);
-  if (emergencyMatch) {
-    result.emergencyContact = emergencyMatch[1];
   }
 
   return result;

@@ -54,17 +54,28 @@ export const scanAndCropIdCardMulti = async (req, res) => {
 }
 
 export const uploadIdCard = async (req, res) => {
-  const frontBuffer = req.files?.frontImage?.[0]?.buffer
-  const backBuffer = req.files?.backImage?.[0]?.buffer
+  const frontBuffer =
+    req.files?.frontImage?.[0]?.buffer ||
+    req.files?.front?.[0]?.buffer ||
+    req.files?.file1?.[0]?.buffer
+  const backBuffer =
+    req.files?.backImage?.[0]?.buffer ||
+    req.files?.back?.[0]?.buffer ||
+    req.files?.file2?.[0]?.buffer
 
   const result = await userService.uploadIdCard(req.user.id, {
     studentIdNumber: req.body.studentIdNumber,
+    name: req.body.name,
+    phone: req.body.phone,
     frontBuffer,
     backBuffer,
     frontDataUrl: req.body.frontImage,
     backDataUrl: req.body.backImage,
     department: req.body.department,
+    batch: req.body.batch,
     year: req.body.year,
+    validUpto: req.body.validUpto,
+    emergencyPhone: req.body.emergencyPhone,
   })
 
   return ApiResponse.ok(res, result, 'Student ID card uploaded and verified successfully')
