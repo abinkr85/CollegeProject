@@ -87,15 +87,22 @@ export default function ComplaintTable({ complaints = [], isLoading = false, onR
                   <td className="px-5 py-4 font-medium text-gray-900 truncate max-w-[200px] xl:max-w-[300px]">
                     {complaint.title}
                   </td>
-                  <td className="px-5 py-4 hidden md:table-cell truncate max-w-[160px]">
-                    <span className="inline-flex items-center gap-1.5 truncate">
-                      <span className="truncate">{complaint.user?.name}</span>
-                      {complaint.user?.idCardStatus === 'VERIFIED' && (
-                        <span className="text-xs shrink-0" title="Verified Student ID">
-                          🛡️
+                  <td className="px-5 py-4 hidden md:table-cell truncate max-w-[170px]">
+                    <div className="flex flex-col min-w-0">
+                      <span className="inline-flex items-center gap-1.5 truncate">
+                        <span className="truncate font-medium text-gray-900">{complaint.user?.name}</span>
+                        {complaint.user?.idCardStatus === 'VERIFIED' && (
+                          <span className="text-xs shrink-0" title="Verified Student ID">
+                            🛡️
+                          </span>
+                        )}
+                      </span>
+                      {complaint.user?.studentIdNumber && (
+                        <span className="text-[11px] font-mono text-gray-500 truncate">
+                          {complaint.user.studentIdNumber}
                         </span>
                       )}
-                    </span>
+                    </div>
                   </td>
                   <td className="px-5 py-4 hidden lg:table-cell">
                     <PriorityBadge priority={complaint.priority} />

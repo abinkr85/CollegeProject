@@ -83,9 +83,9 @@ export function parseIdCardText(ocrText = '') {
   // 4. Course / Department Pattern
   // e.g. "Bachelor of Computer Application" or "BCA"
   if (/Bachelor\s*of\s*Computer\s*Applications?/i.test(cleanText) || /\bBCA\b/i.test(cleanText)) {
-    result.department = 'Bachelor of Computer Application (BCA)';
+    result.department = 'Bachelor of Computer Application';
   } else if (/Bachelor\s*of\s*Business\s*Administration/i.test(cleanText) || /\bBBA\b/i.test(cleanText)) {
-    result.department = 'Bachelor of Business Administration (BBA)';
+    result.department = 'Bachelor of Business Administration';
   } else if (/Nursing/i.test(cleanText)) {
     result.department = 'Harsha College of Nursing';
   } else if (/Pharmacy/i.test(cleanText)) {

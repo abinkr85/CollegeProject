@@ -64,6 +64,14 @@ const USER_SELECT = {
   idCardStatus: true,
   idCardFrontUrl: true,
   idCardBackUrl: true,
+  department: true,
+  batch: true,
+  year: true,
+  phone: true,
+  emergencyPhone: true,
+  idCardValidUpto: true,
+  idCardScannedAt: true,
+  idCardVerifiedAt: true,
 }
 
 export const findComplaints = async (filters, { page, limit }) => {
@@ -239,12 +247,17 @@ export const findUsers = async (filters, { page, limit }) => {
     where.department = { contains: filters.department, mode: 'insensitive' }
   }
 
+  if (filters.idCardStatus && filters.idCardStatus !== 'all') {
+    where.idCardStatus = filters.idCardStatus
+  }
+
   if (filters.search) {
     const s = filters.search.trim()
     where.OR = [
       { name: { contains: s, mode: 'insensitive' } },
       { email: { contains: s, mode: 'insensitive' } },
       { department: { contains: s, mode: 'insensitive' } },
+      { studentIdNumber: { contains: s, mode: 'insensitive' } },
     ]
   }
 
@@ -289,6 +302,9 @@ export const findUsers = async (filters, { page, limit }) => {
         idCardBackUrl: true,
         idCardScannedAt: true,
         idCardVerifiedAt: true,
+        idCardValidUpto: true,
+        phone: true,
+        emergencyPhone: true,
         _count: {
           select: {
             complaints: true,

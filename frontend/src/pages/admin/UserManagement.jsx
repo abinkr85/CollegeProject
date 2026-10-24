@@ -27,7 +27,8 @@ import {
   UserCheck,
   Layers,
   Save,
-  Clock
+  Clock,
+  Phone
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import {
@@ -46,8 +47,8 @@ import { useSystemTimezone } from '../../context/TimezoneContext';
 import { useAuth } from '../../hooks/useAuth';
 
 const DEPARTMENTS = [
-  'Bachelor of Computer Application (BCA)',
-  'Bachelor of Business Administration (BBA)',
+  'Bachelor of Computer Application',
+  'Bachelor of Business Administration',
   'Harsha Institute of Technology',
   'Harsha Institute of Management Studies',
   'Harsha College of Nursing',
@@ -108,6 +109,7 @@ export default function UserManagement() {
     role: '',
     department: '',
     status: 'all',
+    idCardStatus: 'all',
     page: 1,
     limit: 10
   });
@@ -607,6 +609,21 @@ export default function UserManagement() {
               <option value="locked">Locked Out Only</option>
             </select>
           </div>
+
+          {/* ID Card Status Filter (Student tab) */}
+          {activeTab === 'STUDENT' && (
+            <div>
+              <select
+                value={filters.idCardStatus || 'all'}
+                onChange={e => handleFilterChange('idCardStatus', e.target.value)}
+                className="w-full py-2 px-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0a1422] transition-colors text-gray-700 cursor-pointer font-medium"
+              >
+                <option value="all">All ID Statuses</option>
+                <option value="VERIFIED">Verified Students (🛡️)</option>
+                <option value="UNVERIFIED">Unverified Only</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -619,8 +636,10 @@ export default function UserManagement() {
                 <th className="py-3.5 px-4 sm:px-6">
                   {activeTab === 'STUDENT' ? 'Student' : activeTab === 'ADMIN' ? 'Staff / Administrator' : 'User'}
                 </th>
+                {activeTab === 'STUDENT' && <th className="py-3.5 px-4">Roll / Student ID</th>}
+                {activeTab === 'STUDENT' && <th className="py-3.5 px-4">ID Status</th>}
                 <th className="py-3.5 px-4">Department</th>
-                {activeTab === 'STUDENT' && <th className="py-3.5 px-4">Academic Year</th>}
+                {activeTab === 'STUDENT' && <th className="py-3.5 px-4">Academic Year & Batch</th>}
                 {activeTab === 'ADMIN' && <th className="py-3.5 px-4">Staff ID & Joining</th>}
                 {activeTab === 'ALL' && <th className="py-3.5 px-4">Role</th>}
                 {activeTab !== 'ADMIN' && <th className="py-3.5 px-4">Complaints Filed</th>}
@@ -690,6 +709,34 @@ export default function UserManagement() {
                       </div>
                     </td>
 
+                    {/* Student Roll / ID (Only in 'STUDENT' tab) */}
+                    {activeTab === 'STUDENT' && (
+                      <td className="py-4 px-4">
+                        {u.studentIdNumber ? (
+                          <span className="font-mono font-bold text-gray-900 text-xs bg-gray-100 border border-gray-200/80 px-2.5 py-1 rounded-lg">
+                            {u.studentIdNumber}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-600 italic">Not scanned</span>
+                        )}
+                      </td>
+                    )}
+
+                    {/* ID Verification Status (Only in 'STUDENT' tab) */}
+                    {activeTab === 'STUDENT' && (
+                      <td className="py-4 px-4">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            u.idCardStatus === 'VERIFIED'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {u.idCardStatus === 'VERIFIED' ? '🛡️ Verified' : 'Unverified'}
+                        </span>
+                      </td>
+                    )}
+
                     {/* Department */}
                     <td className="py-4 px-4">
                       {u.department ? (
@@ -702,14 +749,13 @@ export default function UserManagement() {
                       )}
                     </td>
 
-                    {/* Academic Year (For Students) */}
+                    {/* Academic Year & Batch (For Students) */}
                     {activeTab === 'STUDENT' && (
                       <td className="py-4 px-4">
-                        {u.year ? (
-                          <span className="font-semibold text-gray-900 text-xs">{u.year}</span>
-                        ) : (
-                          <span className="text-xs text-amber-600 italic">Incomplete</span>
-                        )}
+                        <div className="text-xs">
+                          <span className="font-semibold text-gray-900 block">{u.year || 'Incomplete'}</span>
+                          {u.batch && <span className="text-[11px] text-gray-500 font-mono">Batch: {u.batch}</span>}
+                        </div>
                       </td>
                     )}
 
@@ -1039,20 +1085,10 @@ export default function UserManagement() {
                     <>
                       <div className="p-3.5 flex items-center justify-between">
                         <span className="text-gray-500 flex items-center gap-2 text-xs">
-                          <GraduationCap size={15} />
-                          Academic Year
-                        </span>
-                        <span className="font-medium text-gray-900 text-xs">
-                          {selectedUser.year || 'Not configured'}
-                        </span>
-                      </div>
-
-                      <div className="p-3.5 flex items-center justify-between">
-                        <span className="text-gray-500 flex items-center gap-2 text-xs">
                           <ShieldCheck size={15} />
                           Student ID / Roll No
                         </span>
-                        <span className="font-mono font-bold text-gray-900 text-xs bg-gray-100 px-2 py-0.5 rounded">
+                        <span className="font-mono font-bold text-gray-900 text-xs bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
                           {selectedUser.studentIdNumber || 'Not provided'}
                         </span>
                       </div>
@@ -1062,16 +1098,75 @@ export default function UserManagement() {
                           <Shield size={15} />
                           ID Verification
                         </span>
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                            selectedUser.idCardStatus === 'VERIFIED'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {selectedUser.idCardStatus === 'VERIFIED' ? 'Verified Student 🛡️' : 'Unverified'}
-                        </span>
+                        <div className="text-right">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                              selectedUser.idCardStatus === 'VERIFIED'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {selectedUser.idCardStatus === 'VERIFIED' ? 'Verified Student 🛡️' : 'Unverified'}
+                          </span>
+                          {selectedUser.idCardVerifiedAt && (
+                            <span className="block text-[10px] text-gray-400 mt-0.5">
+                              Verified: {formatDate(selectedUser.idCardVerifiedAt, timezone)}
+                            </span>
+                          )}
+                        </div>
                       </div>
+
+                      <div className="p-3.5 flex items-center justify-between">
+                        <span className="text-gray-500 flex items-center gap-2 text-xs">
+                          <GraduationCap size={15} />
+                          Academic Year &amp; Batch
+                        </span>
+                        <div className="text-right text-xs">
+                          <span className="font-medium text-gray-900 block">
+                            {selectedUser.year || 'Not configured'}
+                          </span>
+                          {selectedUser.batch && (
+                            <span className="text-[11px] text-gray-500 font-mono">
+                              Batch: {selectedUser.batch}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {selectedUser.idCardValidUpto && (
+                        <div className="p-3.5 flex items-center justify-between">
+                          <span className="text-gray-500 flex items-center gap-2 text-xs">
+                            <Clock size={15} />
+                            Valid Upto
+                          </span>
+                          <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-xs font-mono">
+                            {selectedUser.idCardValidUpto}
+                          </span>
+                        </div>
+                      )}
+
+                      {(selectedUser.phone || selectedUser.emergencyPhone) && (
+                        <div className="p-3.5 space-y-1.5 border-t border-gray-100">
+                          <span className="text-gray-500 text-xs font-semibold flex items-center gap-1.5">
+                            <Phone size={13} />
+                            Contact Details
+                          </span>
+                          <div className="grid grid-cols-1 gap-1 text-xs">
+                            {selectedUser.phone && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Student Phone:</span>
+                                <span className="font-mono font-medium text-gray-900">{selectedUser.phone}</span>
+                              </div>
+                            )}
+                            {selectedUser.emergencyPhone && (
+                              <div className="flex justify-between">
+                                <span className="text-red-600">Emergency Phone:</span>
+                                <span className="font-mono font-bold text-red-700">{selectedUser.emergencyPhone}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {selectedUser.idCardFrontUrl && (
                         <div className="p-3.5 space-y-2 border-t border-gray-100">
@@ -1091,7 +1186,7 @@ export default function UserManagement() {
                                 className="w-full h-full object-cover"
                               />
                               <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                                Front
+                                Front ↗
                               </span>
                             </a>
                             {selectedUser.idCardBackUrl ? (
@@ -1107,7 +1202,7 @@ export default function UserManagement() {
                                   className="w-full h-full object-cover"
                                 />
                                 <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                                  Back
+                                  Back ↗
                                 </span>
                               </a>
                             ) : null}

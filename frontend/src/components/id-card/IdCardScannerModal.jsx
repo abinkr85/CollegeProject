@@ -110,7 +110,7 @@ export default function IdCardScannerModal({
       setStudentIdInput(currentStudentId || '');
       setNameInput(currentName || '');
       setPhoneInput(currentPhone || '');
-      setDepartmentInput(currentDepartment || 'Bachelor of Computer Application (BCA)');
+      setDepartmentInput(currentDepartment || 'Bachelor of Computer Application');
       setBatchInput(currentBatch || '2023 - 2024');
       setYearInput(currentYear || '3rd Year');
       setValidUptoInput(currentValidUpto || '2026');
@@ -846,7 +846,7 @@ export default function IdCardScannerModal({
                       type="text"
                       value={departmentInput}
                       onChange={(e) => setDepartmentInput(e.target.value)}
-                      placeholder="Bachelor of Computer Application (BCA)"
+                      placeholder="Bachelor of Computer Application"
                       className="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

@@ -516,32 +516,81 @@ export default function ComplaintDetailPanel({ complaint, onClose, onSave }) {
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
                       Student Information
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-semibold text-gray-900">{complaint.user?.name}</span>
-                      {complaint.user?.idCardStatus === 'VERIFIED' && (
+                      {complaint.user?.idCardStatus === 'VERIFIED' ? (
                         <span
                           className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"
                           title="Verified Student ID"
                         >
                           🛡️ Verified
                         </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300"
+                        >
+                          Unverified
+                        </span>
                       )}
                     </div>
                     <span className="text-gray-500 block">{complaint.user?.email}</span>
                     {complaint.user?.studentIdNumber && (
-                      <span className="text-[11px] font-mono font-semibold text-slate-700 block mt-0.5">
-                        ID: {complaint.user.studentIdNumber}
+                      <span className="text-[11px] font-mono font-bold text-slate-800 block mt-0.5">
+                        Roll No: {complaint.user.studentIdNumber}
                       </span>
                     )}
+
+                    {(complaint.user?.department || complaint.user?.batch || complaint.user?.year) && (
+                      <div className="mt-1.5 pt-1.5 border-t border-gray-100 space-y-0.5 text-gray-700">
+                        {complaint.user?.department && (
+                          <span className="block font-medium truncate text-gray-800">
+                            {complaint.user.department}
+                          </span>
+                        )}
+                        <span className="block text-[11px] text-gray-500 font-mono">
+                          {[complaint.user?.batch && `Batch: ${complaint.user.batch}`, complaint.user?.year].filter(Boolean).join(' • ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {(complaint.user?.phone || complaint.user?.emergencyPhone) && (
+                      <div className="mt-1.5 pt-1 border-t border-gray-100 space-y-0.5 text-[11px]">
+                        {complaint.user?.phone && (
+                          <div className="text-gray-600">
+                            <span>Phone: </span>
+                            <span className="font-mono font-medium text-gray-900">{complaint.user.phone}</span>
+                          </div>
+                        )}
+                        {complaint.user?.emergencyPhone && (
+                          <div className="text-red-600">
+                            <span>Emergency: </span>
+                            <span className="font-mono font-bold text-red-700">{complaint.user.emergencyPhone}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {complaint.user?.idCardFrontUrl && (
-                      <a
-                        href={complaint.user.idCardFrontUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-semibold mt-1"
-                      >
-                        <span>View Scanned ID Card ↗</span>
-                      </a>
+                      <div className="mt-2 pt-1.5 border-t border-gray-100 flex items-center gap-2">
+                        <a
+                          href={complaint.user.idCardFrontUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-semibold"
+                        >
+                          <span>Front Card ↗</span>
+                        </a>
+                        {complaint.user?.idCardBackUrl && (
+                          <a
+                            href={complaint.user.idCardBackUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-semibold"
+                          >
+                            <span>Back Card ↗</span>
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div>
