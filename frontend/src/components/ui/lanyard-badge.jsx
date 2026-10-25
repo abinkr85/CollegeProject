@@ -154,7 +154,8 @@ const LanyardBadge = forwardRef(function LanyardBadge(
     strapColor = '#1e3a8a',
     inkColor = '#fcd34d',
     cardWidth = 220,
-    height = '480px',
+    height = '445px',
+    strapLength = 'compact',
     className = '',
     onFlipChange,
   },
@@ -182,9 +183,9 @@ const LanyardBadge = forwardRef(function LanyardBadge(
   const ringR = Math.max(7, Math.round(cw * 0.036));
   const clipH = Math.round(cw * 0.1);
 
-  const look = useRef({ strapText, strapLabel, strapColor, inkColor });
-  look.current = { strapText, strapLabel, strapColor, inkColor };
-  const lookKey = [strapText, strapLabel, strapColor, inkColor].join('|');
+  const look = useRef({ strapText, strapLabel, strapColor, inkColor, strapLength });
+  look.current = { strapText, strapLabel, strapColor, inkColor, strapLength };
+  const lookKey = [strapText, strapLabel, strapColor, inkColor, strapLength].join('|');
 
   useEffect(() => {
     const root = rootRef.current;
@@ -194,10 +195,11 @@ const LanyardBadge = forwardRef(function LanyardBadge(
     const ctx = canvas?.getContext('2d');
     if (!root || !canvas || !card || !inner || !ctx) return;
 
-    const sw = Math.max(14, Math.round(cw * 0.1)); // strap width
-    const lowLen = sw * 2.2; // buckle to ring
+    const sw = Math.max(14, Math.round(cw * 0.095)); // strap width
+    const isCompact = strapLength === 'compact';
+    const lowLen = isCompact ? Math.round(sw * 1.0) : Math.round(sw * 2.2); // buckle to ring
     const arm = ringR * 2 + clipH + ch * 0.55; // ring to card center of mass
-    const N = 12;
+    const N = isCompact ? 10 : 12;
 
     let pts = [];
     let links = [];
@@ -243,9 +245,11 @@ const LanyardBadge = forwardRef(function LanyardBadge(
       pts = [];
       links = [];
       const cx = W / 2;
-      const spread = Math.min(W * 0.22, cw * 0.6);
-      const top = -sw * 2;
-      const bY = Math.max(40, Math.min(H * 0.22, H - (lowLen + ringR * 2 + clipH + ch) - 24));
+      const spread = isCompact ? Math.min(W * 0.18, cw * 0.48) : Math.min(W * 0.22, cw * 0.6);
+      const top = -sw * 1.6;
+      const bY = isCompact
+        ? Math.max(28, Math.min(42, H * 0.09))
+        : Math.max(40, Math.min(H * 0.22, H - (lowLen + ringR * 2 + clipH + ch) - 24));
 
       const aL = add(cx - spread, top, 0);
       iB = add(cx, bY, 1.4);

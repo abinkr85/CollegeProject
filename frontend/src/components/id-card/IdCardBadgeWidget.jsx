@@ -247,7 +247,8 @@ export default function IdCardBadgeWidget({
                   front={frontFace}
                   back={backFace}
                   cardWidth={225}
-                  height="480px"
+                  height="445px"
+                  strapLength="compact"
                   strapText="HARSHA INSTITUTIONS"
                   strapLabel="CAMPUS ID"
                   strapColor="#1e3a8a"
