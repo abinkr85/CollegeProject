@@ -2,6 +2,7 @@
 // User & Student Directory management page for campus administrators.
 
 import { useEffect, useState, useCallback, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -123,6 +124,26 @@ export default function UserManagement() {
       setEditJoiningDate(selectedUser.joiningDate ? String(selectedUser.joiningDate).slice(0, 10) : '');
       setEditDepartment(selectedUser.department || '');
     }
+  }, [selectedUser]);
+
+  // Lock background scroll and listen for Escape key when drawer is open
+  useEffect(() => {
+    if (!selectedUser) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setSelectedUser(null);
+      }
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [selectedUser]);
 
   function handleTabChange(tab) {
@@ -1013,59 +1034,85 @@ export default function UserManagement() {
       </div>
 
       {/* Selected User Slide-Over Drawer */}
-      {selectedUser && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 backdrop-blur-xs flex justify-end">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
-            {/* Drawer Header */}
-            <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                {selectedUser.role === 'ADMIN' ? (
-                  <ShieldCheck size={20} className="text-purple-600" />
-                ) : (
-                  <GraduationCap size={20} className="text-blue-600" />
-                )}
-                {selectedUser.role === 'ADMIN' ? 'Administrator Profile' : 'Student Profile'}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setSelectedUser(null)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      {selectedUser &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] overflow-hidden">
+            {/* Full-screen Overlay Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+              onClick={() => setSelectedUser(null)}
+              aria-hidden="true"
+            />
 
-            {/* Drawer Body */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              {/* Profile Card */}
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-200">
-                <div
-                  className={`h-14 w-14 rounded-full text-white flex items-center justify-center text-lg font-bold shadow-sm select-none ${
-                    selectedUser.role === 'ADMIN' ? 'bg-purple-600' : 'bg-blue-600'
-                  }`}
-                >
-                  {getInitials(selectedUser.name)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-gray-900 text-base truncate">{selectedUser.name}</h3>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">{selectedUser.email}</p>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold mt-2 ${
-                      selectedUser.role === 'ADMIN'
-                        ? selectedUser.isSuperAdmin
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                          : 'bg-purple-100 text-purple-700 border border-purple-200'
-                        : 'bg-blue-100 text-blue-700 border border-blue-200'
-                    }`}
+            {/* Slide-over Container: Flush to top, bottom, and right with 0 gaps */}
+            <div className="fixed inset-y-0 right-0 top-0 bottom-0 z-[101] flex max-w-full pointer-events-none">
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={selectedUser.role === 'ADMIN' ? 'Administrator Profile' : 'Student Profile'}
+                className="pointer-events-auto w-screen max-w-md bg-white shadow-2xl flex flex-col h-screen h-dvh max-h-screen top-0 bottom-0 animate-in slide-in-from-right duration-200 overflow-hidden"
+              >
+                {/* Drawer Header - flush with top edge */}
+                <div className="px-6 py-4.5 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
+                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    {selectedUser.role === 'ADMIN' ? (
+                      <ShieldCheck size={20} className="text-purple-600" />
+                    ) : (
+                      <GraduationCap size={20} className="text-blue-600" />
+                    )}
+                    {selectedUser.role === 'ADMIN' ? 'Administrator Profile' : 'Student Profile'}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUser(null)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                    aria-label="Close drawer"
                   >
-                    {selectedUser.role === 'ADMIN'
-                      ? selectedUser.isSuperAdmin
-                        ? 'Super Administrator'
-                        : 'Administrator'
-                      : 'Verified Student'}
-                  </span>
+                    <X size={20} />
+                  </button>
                 </div>
-              </div>
+
+                {/* Drawer Body - tight top padding, no dead gaps */}
+                <div className="px-6 pt-5 pb-6 overflow-y-auto flex-1 space-y-6">
+                  {/* Profile Card with Top Identity Banner to fill the top beautifully */}
+                  <div className="rounded-2xl bg-white border border-gray-200 overflow-hidden shadow-xs">
+                    {/* Top Accent Strip filling the card header */}
+                    <div
+                      className={`h-2.5 w-full ${
+                        selectedUser.role === 'ADMIN'
+                          ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-800'
+                          : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700'
+                      }`}
+                    />
+                    <div className="p-4 flex items-center gap-4 bg-gray-50/70">
+                      <div
+                        className={`h-14 w-14 rounded-full text-white flex items-center justify-center text-lg font-bold shadow-sm select-none shrink-0 ${
+                          selectedUser.role === 'ADMIN' ? 'bg-purple-600' : 'bg-blue-600'
+                        }`}
+                      >
+                        {getInitials(selectedUser.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-gray-900 text-base truncate">{selectedUser.name}</h3>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">{selectedUser.email}</p>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold mt-2 ${
+                            selectedUser.role === 'ADMIN'
+                              ? selectedUser.isSuperAdmin
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-purple-100 text-purple-700 border border-purple-200'
+                              : 'bg-blue-100 text-blue-700 border border-blue-200'
+                          }`}
+                        >
+                          {selectedUser.role === 'ADMIN'
+                            ? selectedUser.isSuperAdmin
+                              ? 'Super Administrator'
+                              : 'Administrator'
+                            : 'Verified Student'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
               {/* Details List */}
               <div className="space-y-3">
@@ -1519,85 +1566,89 @@ export default function UserManagement() {
                   </button>
                 </div>
               )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* Confirmation Modal for Permanent Account Deletion */}
-      {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150 space-y-4">
-            <div className="flex items-start gap-3.5">
-              <div className="p-3 bg-red-100 text-red-600 rounded-xl shrink-0">
-                <ShieldAlert size={24} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Confirm Account Deletion</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Only Super Administrators can perform this action. This deletion cannot be undone.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Name:</span>
-                <span className="font-semibold text-gray-900">{userToDelete.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Email:</span>
-                <span className="font-mono text-gray-900">{userToDelete.email}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Account Role:</span>
-                <span className="font-semibold text-purple-700">
-                  {userToDelete.isSuperAdmin ? 'Super Administrator' : userToDelete.role === 'ADMIN' ? 'Administrator' : 'Student'}
-                </span>
-              </div>
-              {userToDelete.complaintsCount > 0 && (
-                <div className="flex justify-between text-amber-700 pt-1 border-t border-gray-200">
-                  <span>Linked Complaints:</span>
-                  <span className="font-semibold">{userToDelete.complaintsCount} complaint(s) filed</span>
+      {userToDelete &&
+        createPortal(
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+              <div className="flex items-start gap-3.5">
+                <div className="p-3 bg-red-100 text-red-600 rounded-xl shrink-0">
+                  <ShieldAlert size={24} />
                 </div>
-              )}
-            </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Confirm Account Deletion</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Only Super Administrators can perform this action. This deletion cannot be undone.
+                  </p>
+                </div>
+              </div>
 
-            <p className="text-xs text-red-600 font-medium leading-relaxed">
-              Are you sure you want to permanently delete this account? Old passout students and administrators will lose campus portal access immediately.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setUserToDelete(null)}
-                className="px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-xl border border-gray-200 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleConfirmDelete}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={14} />
-                    Yes, Permanently Delete
-                  </>
+              <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Name:</span>
+                  <span className="font-semibold text-gray-900">{userToDelete.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Email:</span>
+                  <span className="font-mono text-gray-900">{userToDelete.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Account Role:</span>
+                  <span className="font-semibold text-purple-700">
+                    {userToDelete.isSuperAdmin ? 'Super Administrator' : userToDelete.role === 'ADMIN' ? 'Administrator' : 'Student'}
+                  </span>
+                </div>
+                {userToDelete.complaintsCount > 0 && (
+                  <div className="flex justify-between text-amber-700 pt-1 border-t border-gray-200">
+                    <span>Linked Complaints:</span>
+                    <span className="font-semibold">{userToDelete.complaintsCount} complaint(s) filed</span>
+                  </div>
                 )}
-              </button>
+              </div>
+
+              <p className="text-xs text-red-600 font-medium leading-relaxed">
+                Are you sure you want to permanently delete this account? Old passout students and administrators will lose campus portal access immediately.
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setUserToDelete(null)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-xl border border-gray-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDelete}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={14} />
+                      Yes, Permanently Delete
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
