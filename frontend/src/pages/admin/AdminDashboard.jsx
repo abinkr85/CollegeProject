@@ -6,7 +6,7 @@ import {
   getMonthlyTrendAnalytics,
   getAllComplaints
 } from '../../api/adminApi';
-import { AlertCircle, CheckCircle2, Clock3, ListChecks } from 'lucide-react';
+import { AlertCircle, BarChart3, Box, CheckCircle2, Clock3, ListChecks } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -25,6 +25,8 @@ import {
 import MetricCard from '../../components/ui/MetricCard';
 import ChartCard from '../../components/ui/ChartCard';
 import RecentActivityFeed from '../../components/admin/RecentActivityFeed';
+import ThreeDBarChart from '../../components/admin/charts/ThreeDBarChart';
+import ThreeDDonutChart from '../../components/admin/charts/ThreeDDonutChart';
 
 // Harmonious brand colors for status categories
 const PIE_COLORS = {
@@ -40,6 +42,7 @@ export default function AdminDashboard() {
   const [trendData, setTrendData] = useState([]);
   const [recent, setRecent] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [chartMode, setChartMode] = useState('3d');
 
   const fetchData = (cancelled) => {
     setIsLoading(true);
@@ -119,12 +122,42 @@ export default function AdminDashboard() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto space-y-6">
       
-      {/* Page Header */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-[#0a1422] tracking-tight">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          Monitor complaint activity, department workload, and resolution progress.
-        </p>
+      {/* Page Header with 3D/2D View Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-[#0a1422] tracking-tight">Admin Dashboard</h1>
+          <p className="text-sm text-gray-500">
+            Monitor complaint activity, department workload, and resolution progress.
+          </p>
+        </div>
+
+        {/* 3D / 2D View Switcher Toggle */}
+        <div className="flex items-center gap-1.5 p-1 bg-surface-container-low/70 rounded-xl border border-outline-variant/60 shadow-xs self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setChartMode('3d')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              chartMode === '3d'
+                ? 'bg-white text-secondary shadow-xs font-bold'
+                : 'text-on-surface-variant hover:text-primary'
+            }`}
+          >
+            <Box className="w-3.5 h-3.5" />
+            <span>3D Interactive</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartMode('2d')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              chartMode === '2d'
+                ? 'bg-white text-secondary shadow-xs font-bold'
+                : 'text-on-surface-variant hover:text-primary'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>2D Classic</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Metric Cards Row */}
@@ -170,6 +203,8 @@ export default function AdminDashboard() {
         >
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400 min-h-[260px]">Loading chart data...</div>
+          ) : chartMode === '3d' ? (
+            <ThreeDBarChart data={catData} barColor="#0058be" height={260} />
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={catData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -194,6 +229,8 @@ export default function AdminDashboard() {
         >
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400 min-h-[260px]">Loading status breakdown...</div>
+          ) : chartMode === '3d' ? (
+            <ThreeDDonutChart data={statData} colors={PIE_COLORS} height={250} />
           ) : (
             <div className="flex flex-col items-center justify-center">
               <ResponsiveContainer width="100%" height={210}>
