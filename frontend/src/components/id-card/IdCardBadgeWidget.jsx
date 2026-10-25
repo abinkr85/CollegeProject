@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   AlertCircle,
   Building2,
@@ -59,6 +59,16 @@ export default function IdCardBadgeWidget({
     toast.success(`Copied Roll No: ${profile.studentIdNumber}`);
     setTimeout(() => setCopiedId(false), 2000);
   };
+
+  // Close inspect modal on ESC key
+  useEffect(() => {
+    if (!isZoomOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsZoomOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isZoomOpen]);
 
   const toggleSide = () => {
     if (lanyardRef.current?.flip) {
@@ -555,18 +565,29 @@ export default function IdCardBadgeWidget({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between w-full text-xs mb-3 border-b border-outline-variant/40 pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span className="font-bold text-sm text-primary">
-                  {profile.name} - Student ID
+            <div className="flex items-center justify-between w-full text-xs mb-3 border-b border-outline-variant/40 pb-3 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-bold text-sm text-primary truncate">
+                  {profile.name}
                 </span>
-                <span className="px-2.5 py-0.5 bg-secondary-fixed text-on-secondary-fixed rounded-md font-mono font-bold text-xs">
+                <span className="px-2 py-0.5 bg-secondary-fixed text-on-secondary-fixed rounded-md font-mono font-bold text-xs shrink-0">
                   {studentIdNumber}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={zoomFlipped ? backImageUrl : frontImageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-primary border border-outline-variant/40 rounded-lg text-xs font-semibold transition"
+                  title="Open original high-res image in new tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Open HD</span>
+                </a>
+
                 <button
                   type="button"
                   onClick={() => setZoomFlipped((prev) => !prev)}
@@ -575,6 +596,7 @@ export default function IdCardBadgeWidget({
                   <RotateCw className={`w-3.5 h-3.5 transition-transform duration-700 ${zoomFlipped ? 'rotate-180' : ''}`} />
                   <span>Flip to {zoomFlipped ? 'Front' : 'Back'}</span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setIsZoomOpen(false)}
@@ -585,38 +607,61 @@ export default function IdCardBadgeWidget({
               </div>
             </div>
 
-            {/* High-res 3D Flippable Image Container */}
-            <div className="relative max-h-[75vh] w-full flex items-center justify-center p-2 perspective-1000">
+            {/* High-res 3D Flippable Image Stage */}
+            <div className="relative w-full flex flex-col items-center justify-center py-2 perspective-1000">
               <div
                 onClick={() => setZoomFlipped((prev) => !prev)}
-                className={`relative max-h-[70vh] aspect-[1/1.58] transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-style-3d cursor-pointer ${
+                className={`relative w-[280px] sm:w-[320px] aspect-[1/1.58] transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-style-3d cursor-pointer select-none rounded-2xl shadow-xl hover:shadow-2xl ${
                   zoomFlipped ? 'rotate-y-180' : ''
                 }`}
-                title="Click to flip ID card"
+                title="Click card to flip side"
               >
                 {/* Modal Front Face */}
-                <div className="absolute inset-0 backface-hidden flex items-center justify-center rounded-xl overflow-hidden shadow-2xl border border-outline-variant/50 bg-surface-container-low">
+                <div className="absolute inset-0 backface-hidden rounded-2xl overflow-hidden shadow-md border border-slate-300 bg-white group">
                   <img
                     src={frontImageUrl}
                     alt="Zoomed Student ID Front"
-                    className="max-h-[70vh] w-auto object-contain select-none"
+                    className="w-full h-full object-cover select-none pointer-events-none"
                   />
+                  {/* Subtle glossy sheen */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-60 transition duration-300" />
+
+                  {/* Corner Badge */}
+                  <div className="absolute top-3 left-3 bg-slate-900/75 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>FRONT SIDE</span>
+                  </div>
                 </div>
 
                 {/* Modal Back Face */}
-                <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center rounded-xl overflow-hidden shadow-2xl border border-outline-variant/50 bg-surface-container-low">
+                <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden shadow-md border border-slate-300 bg-white group">
                   <img
                     src={backImageUrl}
                     alt="Zoomed Student ID Back"
-                    className="max-h-[70vh] w-auto object-contain select-none"
+                    className="w-full h-full object-cover select-none pointer-events-none"
                   />
+                  {/* Subtle glossy sheen */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-60 transition duration-300" />
+
+                  {/* Corner Badge */}
+                  <div className="absolute top-3 left-3 bg-slate-900/75 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>BACK SIDE</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Tap to flip hint */}
+              <span className="text-[11px] text-on-surface-variant/75 mt-3 select-none flex items-center gap-1.5">
+                <RotateCw className="w-3 h-3 text-secondary" />
+                Click card or use button above to flip side
+              </span>
             </div>
 
-            <div className="w-full flex items-center justify-between text-xs text-on-surface-variant pt-3 border-t border-outline-variant/40 mt-3">
+            {/* Modal Footer */}
+            <div className="w-full flex items-center justify-between text-xs text-on-surface-variant pt-3 border-t border-outline-variant/40 mt-2">
               <span>
-                Showing: <strong className="text-primary uppercase font-mono font-bold">{zoomFlipped ? 'back' : 'front'} side</strong>
+                Viewing: <strong className="text-primary uppercase font-mono font-bold">{zoomFlipped ? 'back' : 'front'} side</strong>
               </span>
               <span className="font-semibold text-emerald-700 flex items-center gap-1">
                 <CheckCircle2 size={13} /> Official College Record Verified
