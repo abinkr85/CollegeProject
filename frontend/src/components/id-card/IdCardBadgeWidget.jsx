@@ -205,32 +205,6 @@ export default function IdCardBadgeWidget({
 
                     {/* Subtle Holographic Glass Sheen Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
-
-                    {/* Corner Badge Tag */}
-                    <div className="absolute top-2.5 left-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                      <span>FRONT</span>
-                    </div>
-
-                    {/* Flip Hint Badge (Top Right) */}
-                    <div className="absolute top-2.5 right-2.5 bg-black/60 hover:bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-semibold text-white flex items-center gap-1 shadow-sm transition">
-                      <RotateCw className="w-3 h-3 text-secondary-fixed" />
-                      <span>Flip ⟳</span>
-                    </div>
-
-                    {/* Hover Zoom Prompt (Bottom Right) */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setZoomFlipped(false);
-                        setIsZoomOpen(true);
-                      }}
-                      className="absolute bottom-2.5 right-2.5 bg-primary/85 hover:bg-primary backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow-sm cursor-zoom-in"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5 text-secondary-fixed" />
-                      <span>Inspect</span>
-                    </button>
                   </div>
 
                   {/* ================= BACK FACE ================= */}
@@ -285,32 +259,6 @@ export default function IdCardBadgeWidget({
 
                     {/* Subtle Holographic Glass Sheen Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
-
-                    {/* Corner Badge Tag */}
-                    <div className="absolute top-2.5 left-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                      <span>BACK</span>
-                    </div>
-
-                    {/* Flip Hint Badge (Top Right) */}
-                    <div className="absolute top-2.5 right-2.5 bg-black/60 hover:bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-semibold text-white flex items-center gap-1 shadow-sm transition">
-                      <RotateCw className="w-3 h-3 text-secondary-fixed" />
-                      <span>Flip ⟳</span>
-                    </div>
-
-                    {/* Hover Zoom Prompt (Bottom Right) */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setZoomFlipped(true);
-                        setIsZoomOpen(true);
-                      }}
-                      className="absolute bottom-2.5 right-2.5 bg-primary/85 hover:bg-primary backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow-sm cursor-zoom-in"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5 text-secondary-fixed" />
-                      <span>Inspect</span>
-                    </button>
                   </div>
                 </div>
               </div>
@@ -658,13 +606,6 @@ export default function IdCardBadgeWidget({
                     alt="Zoomed Student ID Front"
                     className="max-h-[70vh] w-auto object-contain select-none"
                   />
-                  <div className="absolute top-3 left-3 bg-primary/85 backdrop-blur-md px-2.5 py-1 rounded text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>FRONT</span>
-                  </div>
-                  <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[11px] font-medium text-white/90 shadow-sm flex items-center gap-1">
-                    <RotateCw className="w-3 h-3 text-secondary-fixed" /> Click to Flip
-                  </div>
                 </div>
 
                 {/* Modal Back Face */}
@@ -674,13 +615,6 @@ export default function IdCardBadgeWidget({
                     alt="Zoomed Student ID Back"
                     className="max-h-[70vh] w-auto object-contain select-none"
                   />
-                  <div className="absolute top-3 left-3 bg-primary/85 backdrop-blur-md px-2.5 py-1 rounded text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>BACK</span>
-                  </div>
-                  <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[11px] font-medium text-white/90 shadow-sm flex items-center gap-1">
-                    <RotateCw className="w-3 h-3 text-secondary-fixed" /> Click to Flip
-                  </div>
                 </div>
               </div>
             </div>
