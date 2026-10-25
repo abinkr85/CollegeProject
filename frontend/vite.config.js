@@ -1,5 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const normalizePath = (id) => id.replace(/\\/g, '/');
 const isPackage = (id, packageName) => id.includes(`/node_modules/${packageName}/`);
@@ -20,6 +25,10 @@ const bundlerOptions = {
 
       if (isAnyPackage(normalizedId, ['react-router-dom', '@remix-run/router'])) {
         return 'router';
+      }
+
+      if (isAnyPackage(normalizedId, ['framer-motion', 'three'])) {
+        return 'motion-3d';
       }
 
       if (isPackage(normalizedId, 'recharts')) {
@@ -53,6 +62,11 @@ const bundlerOptions = {
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   build: {
     rollupOptions: bundlerOptions,
     rolldownOptions: bundlerOptions

@@ -19,6 +19,7 @@ import {
   PlusCircle,
   ClipboardList
 } from 'lucide-react';
+import PillBase from '../ui/3d-adaptive-navigation-bar';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -130,38 +131,9 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Navigation Links (Desktop) */}
-        <div className="hidden md:flex items-center space-x-8 h-full">
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) =>
-              `h-full flex items-center font-bold pb-1 pt-1 duration-200 ease-in-out hover:text-secondary transition-colors border-b-2 ${
-                isActive ? 'text-primary border-secondary' : 'text-on-surface-variant border-transparent'
-              }`
-            }
-          >
-            Dashboard
-          </NavLink>
-          <NavLink
-            to="/submit"
-            className={({ isActive }) =>
-              `h-full flex items-center font-bold pb-1 pt-1 duration-200 ease-in-out hover:text-secondary transition-colors border-b-2 ${
-                isActive ? 'text-primary border-secondary' : 'text-on-surface-variant border-transparent'
-              }`
-            }
-          >
-            Submit Complaint
-          </NavLink>
-          <NavLink
-            to="/history"
-            className={({ isActive }) =>
-              `h-full flex items-center font-bold pb-1 pt-1 duration-200 ease-in-out hover:text-secondary transition-colors border-b-2 ${
-                isActive ? 'text-primary border-secondary' : 'text-on-surface-variant border-transparent'
-              }`
-            }
-          >
-            History
-          </NavLink>
+        {/* 3D Adaptive Navigation Pill (Desktop) */}
+        <div className="hidden md:flex items-center justify-center">
+          <PillBase />
         </div>
 
         {/* Trailing Icons */}
