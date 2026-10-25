@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   AlertCircle,
   Building2,
@@ -23,12 +23,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import Button from '../ui/Button';
+import LanyardBadge from '../ui/lanyard-badge';
 
 export default function IdCardBadgeWidget({
   profile,
   onOpenScanner,
   onRefresh
 }) {
+  const lanyardRef = useRef(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const [zoomFlipped, setZoomFlipped] = useState(false);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -59,7 +61,11 @@ export default function IdCardBadgeWidget({
   };
 
   const toggleSide = () => {
-    setIsFlipped((prev) => !prev);
+    if (lanyardRef.current?.flip) {
+      lanyardRef.current.flip();
+    } else {
+      setIsFlipped((prev) => !prev);
+    }
   };
 
   const handleReload = (e) => {
@@ -71,6 +77,108 @@ export default function IdCardBadgeWidget({
     setRetryNonce((prev) => prev + 1);
     onRefresh?.();
   };
+
+  const frontFace = (
+    <div className="relative w-full h-full bg-white select-none">
+      {!frontLoaded && !frontError && (
+        <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
+          <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
+          <span className="text-[11px] font-semibold text-on-surface-variant text-center">
+            Loading photo...
+          </span>
+        </div>
+      )}
+
+      {frontError ? (
+        <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
+          <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
+          <span className="text-xs font-bold text-primary mb-1">
+            Front photo unavailable
+          </span>
+          <button
+            type="button"
+            onClick={handleReload}
+            className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer mt-2"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Reload</span>
+          </button>
+        </div>
+      ) : null}
+
+      {frontImageUrl && (
+        <img
+          key={`front-${retryNonce}-${frontImageUrl}`}
+          src={frontImageUrl}
+          alt="Student ID Front"
+          onLoad={() => {
+            setFrontLoaded(true);
+            setFrontError(false);
+          }}
+          onError={() => {
+            setFrontLoaded(false);
+            setFrontError(true);
+          }}
+          className={`w-full h-full object-cover select-none pointer-events-none transition-transform duration-500 ${
+            frontLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      )}
+
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 transition duration-500" />
+    </div>
+  );
+
+  const backFace = (
+    <div className="relative w-full h-full bg-white select-none">
+      {!backLoaded && !backError && (
+        <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
+          <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
+          <span className="text-[11px] font-semibold text-on-surface-variant text-center">
+            Loading photo...
+          </span>
+        </div>
+      )}
+
+      {backError ? (
+        <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
+          <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
+          <span className="text-xs font-bold text-primary mb-1">
+            Back photo unavailable
+          </span>
+          <button
+            type="button"
+            onClick={handleReload}
+            className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer mt-2"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Reload</span>
+          </button>
+        </div>
+      ) : null}
+
+      {backImageUrl && (
+        <img
+          key={`back-${retryNonce}-${backImageUrl}`}
+          src={backImageUrl}
+          alt="Student ID Back"
+          onLoad={() => {
+            setBackLoaded(true);
+            setBackError(false);
+          }}
+          onError={() => {
+            setBackLoaded(false);
+            setBackError(true);
+          }}
+          className={`w-full h-full object-cover select-none pointer-events-none transition-transform duration-500 ${
+            backLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      )}
+
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 transition duration-500" />
+    </div>
+  );
 
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/60 shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md">
@@ -131,140 +239,32 @@ export default function IdCardBadgeWidget({
         {isVerified && hasFrontImage ? (
           /* VERIFIED STATE: BALANCED DUAL-COLUMN LAYOUT ALIGNED AT TOP */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-            {/* Left: Authentic 3D ID Card Badge Preview */}
+            {/* Left: Interactive Physics Lanyard Badge Preview */}
             <div className="lg:col-span-5 flex flex-col items-center">
-              {/* Lanyard Strap & Swivel Clip Simulation */}
-              <div className="w-12 h-4 bg-gradient-to-r from-blue-700 via-blue-600 to-blue-800 rounded-t shadow-xs mx-auto" />
-              <div className="w-7 h-3.5 bg-gradient-to-b from-slate-200 via-slate-100 to-slate-300 rounded-xs shadow-xs border border-slate-300 mx-auto -mt-0.5 z-20 flex items-center justify-center">
-                <div className="w-3 h-0.5 bg-slate-500 rounded-full" />
+              <div className="w-full flex justify-center">
+                <LanyardBadge
+                  ref={lanyardRef}
+                  front={frontFace}
+                  back={backFace}
+                  cardWidth={225}
+                  height="480px"
+                  strapText="HARSHA INSTITUTIONS"
+                  strapLabel="CAMPUS ID"
+                  strapColor="#1e3a8a"
+                  inkColor="#fbbf24"
+                  onFlipChange={setIsFlipped}
+                  className="mx-auto"
+                />
               </div>
-              <div className="w-3.5 h-3 rounded-full border-2 border-slate-400 mx-auto -mt-1.5 z-10 shadow-xs" />
 
-              {/* Protective Acrylic Badge Sleeve */}
-              <div className="relative w-full max-w-[245px] p-2 bg-slate-50/90 rounded-2xl border border-outline-variant/70 shadow-md backdrop-blur-xs transition-all duration-300 hover:shadow-xl -mt-1.5 perspective-1000">
-                {/* Lanyard punch hole cut-out in card acrylic */}
-                <div className="w-9 h-2 bg-white rounded-full mx-auto mb-2 border border-slate-300/80 shadow-inner" />
-
-                {/* 3D Flippable Card Stage */}
-                <div
-                  onClick={toggleSide}
-                  className={`group relative rounded-xl w-full aspect-[1/1.58] transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-style-3d cursor-pointer ${
-                    isFlipped ? 'rotate-y-180' : ''
-                  }`}
-                  title="Click to flip ID card"
-                >
-                  {/* ================= FRONT FACE ================= */}
-                  <div className="absolute inset-0 backface-hidden rounded-xl overflow-hidden bg-white shadow-xs border border-slate-200 transition-all duration-300 group-hover:border-secondary/60">
-                    {/* Skeleton loader while fetching front image */}
-                    {!frontLoaded && !frontError && (
-                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
-                        <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
-                        <span className="text-xs font-semibold text-on-surface-variant">
-                          Loading ID card photo...
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Fallback if front image failed */}
-                    {frontError ? (
-                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
-                        <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
-                        <span className="text-xs font-bold text-primary mb-1">
-                          Front photo unavailable
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleReload}
-                          className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer mt-2"
-                        >
-                          <RotateCw className="w-3.5 h-3.5" />
-                          <span>Reload</span>
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {/* Front Card Image */}
-                    {frontImageUrl && (
-                      <img
-                        key={`front-${retryNonce}-${frontImageUrl}`}
-                        src={frontImageUrl}
-                        alt="Student ID Front"
-                        onLoad={() => {
-                          setFrontLoaded(true);
-                          setFrontError(false);
-                        }}
-                        onError={() => {
-                          setFrontLoaded(false);
-                          setFrontError(true);
-                        }}
-                        className={`w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-102 ${
-                          frontLoaded ? 'opacity-100' : 'opacity-0'
-                        }`}
-                      />
-                    )}
-
-                    {/* Subtle Holographic Glass Sheen Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
-                  </div>
-
-                  {/* ================= BACK FACE ================= */}
-                  <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-xl overflow-hidden bg-white shadow-xs border border-slate-200 transition-all duration-300 group-hover:border-secondary/60">
-                    {/* Skeleton loader while fetching back image */}
-                    {!backLoaded && !backError && (
-                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
-                        <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
-                        <span className="text-xs font-semibold text-on-surface-variant">
-                          Loading ID card photo...
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Fallback if back image failed */}
-                    {backError ? (
-                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
-                        <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
-                        <span className="text-xs font-bold text-primary mb-1">
-                          Back photo unavailable
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleReload}
-                          className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer mt-2"
-                        >
-                          <RotateCw className="w-3.5 h-3.5" />
-                          <span>Reload</span>
-                        </button>
-                      </div>
-                    ) : null}
-
-                    {/* Back Card Image */}
-                    {backImageUrl && (
-                      <img
-                        key={`back-${retryNonce}-${backImageUrl}`}
-                        src={backImageUrl}
-                        alt="Student ID Back"
-                        onLoad={() => {
-                          setBackLoaded(true);
-                          setBackError(false);
-                        }}
-                        onError={() => {
-                          setBackLoaded(false);
-                          setBackError(true);
-                        }}
-                        className={`w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-102 ${
-                          backLoaded ? 'opacity-100' : 'opacity-0'
-                        }`}
-                      />
-                    )}
-
-                    {/* Subtle Holographic Glass Sheen Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
-                  </div>
-                </div>
+              {/* Micro-hint below badge */}
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/75 -mt-1 mb-3 select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Drag badge to swing • Tap or click below to flip</span>
               </div>
 
               {/* Card Controls Toolbar: Clean full-width button matching card width */}
-              <div className="w-full max-w-[245px] mt-3 flex items-center gap-2">
+              <div className="w-full max-w-[245px] flex items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleSide}
