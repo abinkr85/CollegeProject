@@ -29,12 +29,14 @@ export default function IdCardBadgeWidget({
   onOpenScanner,
   onRefresh
 }) {
-  const [currentSide, setCurrentSide] = useState('front'); // 'front' | 'back'
   const [isFlipped, setIsFlipped] = useState(false);
+  const [zoomFlipped, setZoomFlipped] = useState(false);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
-  const [imageError, setImageError] = useState(false);
+  const [frontLoaded, setFrontLoaded] = useState(false);
+  const [backLoaded, setBackLoaded] = useState(false);
+  const [frontError, setFrontError] = useState(false);
+  const [backError, setBackError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
   const isVerified = profile?.idCardStatus === 'VERIFIED';
@@ -43,8 +45,10 @@ export default function IdCardBadgeWidget({
   const hasBackImage = Boolean(profile?.idCardBackUrl);
   const studentIdNumber = profile?.studentIdNumber || 'Not specified';
 
-  const rawUrl = currentSide === 'front' ? profile?.idCardFrontUrl : profile?.idCardBackUrl || profile?.idCardFrontUrl;
-  const currentImageUrl = rawUrl ? (retryNonce ? `${rawUrl}?r=${retryNonce}` : rawUrl) : '';
+  const frontUrl = profile?.idCardFrontUrl;
+  const backUrl = profile?.idCardBackUrl || profile?.idCardFrontUrl;
+  const frontImageUrl = frontUrl ? (retryNonce ? `${frontUrl}?r=${retryNonce}` : frontUrl) : '';
+  const backImageUrl = backUrl ? (retryNonce ? `${backUrl}?r=${retryNonce}` : backUrl) : '';
 
   const handleCopyId = () => {
     if (!profile?.studentIdNumber) return;
@@ -55,11 +59,17 @@ export default function IdCardBadgeWidget({
   };
 
   const toggleSide = () => {
-    const nextSide = currentSide === 'front' ? 'back' : 'front';
-    setCurrentSide(nextSide);
-    setIsFlipped(!isFlipped);
-    setImageLoading(true);
-    setImageError(false);
+    setIsFlipped((prev) => !prev);
+  };
+
+  const handleReload = (e) => {
+    e?.stopPropagation();
+    setFrontError(false);
+    setBackError(false);
+    setFrontLoaded(false);
+    setBackLoaded(false);
+    setRetryNonce((prev) => prev + 1);
+    onRefresh?.();
   };
 
   return (
@@ -131,101 +141,201 @@ export default function IdCardBadgeWidget({
               <div className="w-3.5 h-3 rounded-full border-2 border-slate-400 mx-auto -mt-1.5 z-10 shadow-xs" />
 
               {/* Protective Acrylic Badge Sleeve */}
-              <div className="relative w-full max-w-[245px] p-2 bg-slate-50/90 rounded-2xl border border-outline-variant/70 shadow-md backdrop-blur-xs transition-all duration-300 hover:shadow-lg -mt-1.5">
+              <div className="relative w-full max-w-[245px] p-2 bg-slate-50/90 rounded-2xl border border-outline-variant/70 shadow-md backdrop-blur-xs transition-all duration-300 hover:shadow-xl -mt-1.5 perspective-1000">
                 {/* Lanyard punch hole cut-out in card acrylic */}
                 <div className="w-9 h-2 bg-white rounded-full mx-auto mb-2 border border-slate-300/80 shadow-inner" />
 
-                {/* Physical Card Preview Frame */}
+                {/* 3D Flippable Card Stage */}
                 <div
-                  onClick={() => !imageError && setIsZoomOpen(true)}
-                  className={`group relative rounded-xl overflow-hidden bg-white shadow-xs border border-slate-200 aspect-[1/1.58] transition-all duration-300 hover:border-secondary/60 ${
-                    !imageError ? 'cursor-zoom-in' : ''
+                  onClick={toggleSide}
+                  className={`group relative rounded-xl w-full aspect-[1/1.58] transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-style-3d cursor-pointer ${
+                    isFlipped ? 'rotate-y-180' : ''
                   }`}
+                  title="Click to flip ID card"
                 >
-                  {/* Skeleton loader while fetching image */}
-                  {imageLoading && (
-                    <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
-                      <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
-                      <span className="text-xs font-semibold text-on-surface-variant">
-                        Loading ID card photo...
-                      </span>
-                    </div>
-                  )}
+                  {/* ================= FRONT FACE ================= */}
+                  <div className="absolute inset-0 backface-hidden rounded-xl overflow-hidden bg-white shadow-xs border border-slate-200 transition-all duration-300 group-hover:border-secondary/60">
+                    {/* Skeleton loader while fetching front image */}
+                    {!frontLoaded && !frontError && (
+                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
+                        <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
+                        <span className="text-xs font-semibold text-on-surface-variant">
+                          Loading ID card photo...
+                        </span>
+                      </div>
+                    )}
 
-                  {/* Fallback if image failed to load from CDN */}
-                  {imageError ? (
-                    <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
-                      <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
-                      <span className="text-xs font-bold text-primary mb-1">
-                        Could not load ID photo
-                      </span>
-                      <span className="text-[10px] text-on-surface-variant mb-3 max-w-[180px]">
-                        The card is verified. Tap reload to re-fetch the image from storage.
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setImageError(false);
-                          setImageLoading(true);
-                          setRetryNonce((prev) => prev + 1);
-                          onRefresh?.();
+                    {/* Fallback if front image failed */}
+                    {frontError ? (
+                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
+                        <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
+                        <span className="text-xs font-bold text-primary mb-1">
+                          Front photo unavailable
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleReload}
+                          className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer mt-2"
+                        >
+                          <RotateCw className="w-3.5 h-3.5" />
+                          <span>Reload</span>
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {/* Front Card Image */}
+                    {frontImageUrl && (
+                      <img
+                        key={`front-${retryNonce}-${frontImageUrl}`}
+                        src={frontImageUrl}
+                        alt="Student ID Front"
+                        onLoad={() => {
+                          setFrontLoaded(true);
+                          setFrontError(false);
                         }}
-                        className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
-                      >
-                        <RotateCw className="w-3.5 h-3.5" />
-                        <span>Reload Image</span>
-                      </button>
+                        onError={() => {
+                          setFrontLoaded(false);
+                          setFrontError(true);
+                        }}
+                        className={`w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-102 ${
+                          frontLoaded ? 'opacity-100' : 'opacity-0'
+                        }`}
+                      />
+                    )}
+
+                    {/* Subtle Holographic Glass Sheen Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
+
+                    {/* Corner Badge Tag */}
+                    <div className="absolute top-2.5 left-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      <span>FRONT</span>
                     </div>
-                  ) : null}
 
-                  {/* ID Card Image (Front or Back) */}
-                  {currentImageUrl && (
-                    <img
-                      key={`${currentSide}-${retryNonce}-${currentImageUrl}`}
-                      src={currentImageUrl}
-                      alt={`Student ID ${currentSide}`}
-                      onLoad={() => {
-                        setImageLoading(false);
-                        setImageError(false);
+                    {/* Flip Hint Badge (Top Right) */}
+                    <div className="absolute top-2.5 right-2.5 bg-black/60 hover:bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-semibold text-white flex items-center gap-1 shadow-sm transition">
+                      <RotateCw className="w-3 h-3 text-secondary-fixed" />
+                      <span>Flip ⟳</span>
+                    </div>
+
+                    {/* Hover Zoom Prompt (Bottom Right) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomFlipped(false);
+                        setIsZoomOpen(true);
                       }}
-                      onError={() => {
-                        setImageLoading(false);
-                        setImageError(true);
-                      }}
-                      className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-102 ${
-                        imageLoading ? 'opacity-0' : 'opacity-100'
-                      }`}
-                    />
-                  )}
-
-                  {/* Subtle Holographic Glass Sheen Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
-
-                  {/* Corner Badge Tag */}
-                  <div className="absolute top-2.5 left-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                    <span>{currentSide === 'front' ? 'FRONT' : 'BACK'}</span>
-                  </div>
-
-                  {/* Hover Zoom Prompt */}
-                  {!imageError && !imageLoading && (
-                    <div className="absolute bottom-2.5 right-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow-sm">
+                      className="absolute bottom-2.5 right-2.5 bg-primary/85 hover:bg-primary backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow-sm cursor-zoom-in"
+                    >
                       <ZoomIn className="w-3.5 h-3.5 text-secondary-fixed" />
                       <span>Inspect</span>
+                    </button>
+                  </div>
+
+                  {/* ================= BACK FACE ================= */}
+                  <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-xl overflow-hidden bg-white shadow-xs border border-slate-200 transition-all duration-300 group-hover:border-secondary/60">
+                    {/* Skeleton loader while fetching back image */}
+                    {!backLoaded && !backError && (
+                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-10 animate-pulse">
+                        <RefreshCw className="w-6 h-6 text-secondary animate-spin mb-2 opacity-80" />
+                        <span className="text-xs font-semibold text-on-surface-variant">
+                          Loading ID card photo...
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Fallback if back image failed */}
+                    {backError ? (
+                      <div className="absolute inset-0 bg-surface-container-low flex flex-col items-center justify-center p-4 z-20 text-center">
+                        <AlertCircle className="w-8 h-8 text-amber-500 mb-2" />
+                        <span className="text-xs font-bold text-primary mb-1">
+                          Back photo unavailable
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleReload}
+                          className="px-3 py-1.5 bg-secondary hover:bg-secondary/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-xs cursor-pointer mt-2"
+                        >
+                          <RotateCw className="w-3.5 h-3.5" />
+                          <span>Reload</span>
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {/* Back Card Image */}
+                    {backImageUrl && (
+                      <img
+                        key={`back-${retryNonce}-${backImageUrl}`}
+                        src={backImageUrl}
+                        alt="Student ID Back"
+                        onLoad={() => {
+                          setBackLoaded(true);
+                          setBackError(false);
+                        }}
+                        onError={() => {
+                          setBackLoaded(false);
+                          setBackError(true);
+                        }}
+                        className={`w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-102 ${
+                          backLoaded ? 'opacity-100' : 'opacity-0'
+                        }`}
+                      />
+                    )}
+
+                    {/* Subtle Holographic Glass Sheen Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none opacity-40 group-hover:opacity-75 transition duration-500" />
+
+                    {/* Corner Badge Tag */}
+                    <div className="absolute top-2.5 left-2.5 bg-primary/85 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      <span>BACK</span>
                     </div>
-                  )}
+
+                    {/* Flip Hint Badge (Top Right) */}
+                    <div className="absolute top-2.5 right-2.5 bg-black/60 hover:bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-semibold text-white flex items-center gap-1 shadow-sm transition">
+                      <RotateCw className="w-3 h-3 text-secondary-fixed" />
+                      <span>Flip ⟳</span>
+                    </div>
+
+                    {/* Hover Zoom Prompt (Bottom Right) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setZoomFlipped(true);
+                        setIsZoomOpen(true);
+                      }}
+                      className="absolute bottom-2.5 right-2.5 bg-primary/85 hover:bg-primary backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shadow-sm cursor-zoom-in"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5 text-secondary-fixed" />
+                      <span>Inspect</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Card Controls Toolbar: Clean full-width button matching card width */}
-              <div className="w-full max-w-[245px] mt-3">
+              <div className="w-full max-w-[245px] mt-3 flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={toggleSide}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary text-xs font-semibold border border-outline-variant/60 transition shadow-xs cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary text-xs font-semibold border border-outline-variant/60 transition shadow-xs cursor-pointer active:scale-98"
                 >
-                  <RotateCw className="w-3.5 h-3.5 text-secondary" />
-                  <span>Flip to {currentSide === 'front' ? 'Back Side' : 'Front Side'}</span>
+                  <RotateCw className={`w-3.5 h-3.5 text-secondary transition-transform duration-700 ${isFlipped ? 'rotate-180' : ''}`} />
+                  <span>Flip to {isFlipped ? 'Front Side' : 'Back Side'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoomFlipped(isFlipped);
+                    setIsZoomOpen(true);
+                  }}
+                  title="Inspect high-resolution ID card"
+                  className="p-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-primary text-xs font-semibold border border-outline-variant/60 transition shadow-xs cursor-pointer"
+                >
+                  <ZoomIn className="w-4 h-4 text-on-surface-variant hover:text-primary" />
                 </button>
               </div>
             </div>
@@ -515,13 +625,15 @@ export default function IdCardBadgeWidget({
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={toggleSide}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/30 rounded-lg text-xs font-bold transition cursor-pointer"
+                  type="button"
+                  onClick={() => setZoomFlipped((prev) => !prev)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/30 rounded-lg text-xs font-bold transition cursor-pointer active:scale-98"
                 >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>Flip to {currentSide === 'front' ? 'Back' : 'Front'}</span>
+                  <RotateCw className={`w-3.5 h-3.5 transition-transform duration-700 ${zoomFlipped ? 'rotate-180' : ''}`} />
+                  <span>Flip to {zoomFlipped ? 'Front' : 'Back'}</span>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setIsZoomOpen(false)}
                   className="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-primary rounded-lg font-semibold text-xs transition border border-outline-variant/40 cursor-pointer"
                 >
@@ -530,18 +642,52 @@ export default function IdCardBadgeWidget({
               </div>
             </div>
 
-            {/* High-res Image Container */}
-            <div className="relative max-h-[75vh] w-full flex items-center justify-center p-2">
-              <img
-                src={currentImageUrl || (currentSide === 'front' ? profile?.idCardFrontUrl : profile?.idCardBackUrl || profile?.idCardFrontUrl)}
-                alt="Zoomed Student ID"
-                className="max-h-[70vh] w-auto rounded-xl shadow-lg border border-outline-variant/50 object-contain bg-surface-container-low"
-              />
+            {/* High-res 3D Flippable Image Container */}
+            <div className="relative max-h-[75vh] w-full flex items-center justify-center p-2 perspective-1000">
+              <div
+                onClick={() => setZoomFlipped((prev) => !prev)}
+                className={`relative max-h-[70vh] aspect-[1/1.58] transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-style-3d cursor-pointer ${
+                  zoomFlipped ? 'rotate-y-180' : ''
+                }`}
+                title="Click to flip ID card"
+              >
+                {/* Modal Front Face */}
+                <div className="absolute inset-0 backface-hidden flex items-center justify-center rounded-xl overflow-hidden shadow-2xl border border-outline-variant/50 bg-surface-container-low">
+                  <img
+                    src={frontImageUrl}
+                    alt="Zoomed Student ID Front"
+                    className="max-h-[70vh] w-auto object-contain select-none"
+                  />
+                  <div className="absolute top-3 left-3 bg-primary/85 backdrop-blur-md px-2.5 py-1 rounded text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>FRONT</span>
+                  </div>
+                  <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[11px] font-medium text-white/90 shadow-sm flex items-center gap-1">
+                    <RotateCw className="w-3 h-3 text-secondary-fixed" /> Click to Flip
+                  </div>
+                </div>
+
+                {/* Modal Back Face */}
+                <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center rounded-xl overflow-hidden shadow-2xl border border-outline-variant/50 bg-surface-container-low">
+                  <img
+                    src={backImageUrl}
+                    alt="Zoomed Student ID Back"
+                    className="max-h-[70vh] w-auto object-contain select-none"
+                  />
+                  <div className="absolute top-3 left-3 bg-primary/85 backdrop-blur-md px-2.5 py-1 rounded text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>BACK</span>
+                  </div>
+                  <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[11px] font-medium text-white/90 shadow-sm flex items-center gap-1">
+                    <RotateCw className="w-3 h-3 text-secondary-fixed" /> Click to Flip
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="w-full flex items-center justify-between text-xs text-on-surface-variant pt-3 border-t border-outline-variant/40 mt-3">
               <span>
-                Showing: <strong className="text-primary uppercase font-mono font-bold">{currentSide} side</strong>
+                Showing: <strong className="text-primary uppercase font-mono font-bold">{zoomFlipped ? 'back' : 'front'} side</strong>
               </span>
               <span className="font-semibold text-emerald-700 flex items-center gap-1">
                 <CheckCircle2 size={13} /> Official College Record Verified
