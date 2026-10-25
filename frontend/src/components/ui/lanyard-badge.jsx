@@ -154,7 +154,7 @@ const LanyardBadge = forwardRef(function LanyardBadge(
     strapColor = '#1e3a8a',
     inkColor = '#fcd34d',
     cardWidth = 220,
-    height = '445px',
+    height = '480px',
     strapLength = 'compact',
     className = '',
     onFlipChange,
