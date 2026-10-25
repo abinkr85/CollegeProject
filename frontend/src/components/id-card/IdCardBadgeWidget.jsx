@@ -257,14 +257,8 @@ export default function IdCardBadgeWidget({
                 />
               </div>
 
-              {/* Micro-hint below badge */}
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-on-surface-variant/75 -mt-1 mb-3 select-none">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Drag badge to swing • Tap or click below to flip</span>
-              </div>
-
               {/* Card Controls Toolbar: Clean full-width button matching card width */}
-              <div className="w-full max-w-[245px] flex items-center gap-2">
+              <div className="w-full max-w-[245px] mt-2 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleSide}
